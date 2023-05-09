@@ -37,6 +37,13 @@ end;
 
 symbol ¬ p ≔ p ⇒ ⊥; // ~~ or \neg
 
+opaque symbol ¬ₑ [p q] : π (¬ p) → π p → π q ≔
+begin
+  assume p q hnp⟹p notp;
+  apply ⊥ₑ;
+  apply hnp⟹p notp
+end;
+
 // conjunction
 
 constant symbol ∧ : Prop → Prop → Prop; notation ∧ infix left 7; // /\ or \wedge
@@ -52,6 +59,14 @@ constant symbol ∨ : Prop → Prop → Prop; notation ∨ infix left 6; // \/ o
 constant symbol ∨ᵢ₁ [p q] : π p → π (p ∨ q);
 constant symbol ∨ᵢ₂ [p q] : π q → π (p ∨ q);
 symbol ∨ₑ [p q r] : π (p ∨ q) → (π p → π r) → (π q → π r) → π r;
+
+symbol ∨_com [x y] : π (x ∨ y) → π (y ∨ x) ≔
+begin
+  assume x y hxy;
+  apply ∨ₑ hxy
+  { assume hx; apply ∨ᵢ₂; apply hx }
+  { assume hy; apply ∨ᵢ₁; apply hy }
+end;
 
 // check that priorities are correctly set
 assert x y z ⊢ x ∨ y ∧ z ≡ x ∨ (y ∧ z);
