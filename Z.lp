@@ -428,6 +428,17 @@ begin
 end;
 
 // General results
+opaque symbol Zpos_inj a b : π ((Zpos a = Zpos b) ⇔ (a = b)) ≔
+begin
+  assume a b;
+  apply ∧ᵢ
+    {
+      assume H;
+      admit
+      //apply feq Zpos H;
+    }
+    { assume H; rewrite H; reflexivity };
+end;
 
 symbol simpl_right x a : π (x + a - a = x) ≔
 begin
@@ -658,4 +669,17 @@ with Zpos $x × Zneg $y ↪ Zneg (mul $x $y)
 with Zneg $x × Zpos $y ↪ Zneg (mul $x $y)
 with Zneg $x × Zneg $y ↪ Zpos (mul $x $y);
 
-// TO BE CONTINUED (theorems about multiplication)
+opaque symbol mul_reg_r [n m] p : π (p ≠ 0 ⇒ (n × p = m × p ⇒ n = m)) ≔
+begin
+  admit
+end;
+
+opaque symbol mul_reg_l p [n m] : π (p ≠ 0 ⇒ (p × n = p × m ⇒ n = m)) ≔
+begin
+  admit
+end;
+
+opaque symbol mul_shuffle [a b c] : π (a × b × c = a × c × b) ≔
+begin
+  admit
+end;
