@@ -356,6 +356,8 @@ begin
     rewrite add_succ; rewrite add_succ_right; rewrite xrec; reflexivity }
 end;
 
+opaque symbol add_xO p q: π ( O (add p q) = add (O p) (O q)) ≔ begin reflexivity end;
+
 // function λ x, 2 * x - 1
 
 symbol pos_pred_double : ℙ → ℙ;
@@ -626,7 +628,138 @@ symbol mul : ℙ → ℙ → ℙ;
 
 rule mul (I $x) $y ↪ add $y (O (mul $x $y))
 with mul (O $x) $y ↪ O (mul $x $y)
-with mul H      $y ↪ $y;
+with mul H      $y ↪ $y
+with mul $y     H  ↪ $y;
+
+// Right reduction properties for multiplication
+
+opaque symbol mul_x0_r p q : π (mul p (O q) = O (mul p q)) ≔
+begin 
+  induction
+  { assume p IHp q; simplify; rewrite IHp; refine feq O _; reflexivity }
+  { assume p IHp q; simplify; rewrite IHp; refine feq O _; reflexivity }
+  { reflexivity }
+end;
+
+opaque symbol mul_xI_r p q : π (mul p (I q) = add p (O (mul p q))) ≔
+begin
+  induction
+  { 
+    assume p IHp q; 
+    simplify; 
+    refine feq I _;
+    rewrite IHp;
+    rewrite left add_assoc;
+    rewrite add_com q p;
+    rewrite left add_assoc;
+    reflexivity
+  }
+  { assume p IHp q; simplify; refine feq O _; rewrite IHp;  reflexivity }
+  { reflexivity }
+end;
+
+opaque  symbol mul_com x y : π (mul x y = mul y x) ≔
+begin
+  induction
+  { assume x IH y; rewrite mul_xI_r; simplify; rewrite IH y; reflexivity }
+  { assume x IH y; rewrite mul_x0_r ; simplify; rewrite IH y; reflexivity }
+  {assume y; reflexivity}
+end;
+
+symbol add_diag n: π (add n n = O n) ≔
+begin
+  induction
+  { assume n IH;  simplify; rewrite  left succ_add n n; rewrite IH; reflexivity }
+  { assume n IH;  simplify; rewrite IH; reflexivity }
+  { reflexivity }
+end;
+
+opaque symbol mult_Sn_m n m: π ((add (mul n m) m) = (mul (succ n) m)) ≔
+begin
+ induction
+ {
+    assume n IHn m;
+    simplify;
+    rewrite left IHn;
+    //rewrite left add_diag (add (mul n m) m);
+    rewrite left add_diag;
+    rewrite left add_diag;
+    rewrite add_com (mul n m) m;
+    rewrite .[in x in _ = x] add_assoc;
+    rewrite .[in x in _ = x] add_com;
+    rewrite left add_assoc m (mul n m) (mul n m);
+    rewrite .[in x in x = _] add_com m (mul n m);
+    rewrite  add_assoc (mul n m) m (mul n m);
+    reflexivity
+ }
+ {
+    assume n IHn m;
+    simplify;
+    rewrite add_com;
+    reflexivity
+ }
+ {
+  assume m;
+  simplify;
+  apply add_diag
+ }
+end;
+
+
+opaque symbol mult_n_S n m: π ((add (mul n m) n) = (mul n (succ m))) ≔
+begin
+  assume n m;
+  rewrite mul_com n (succ m);
+  rewrite left mult_Sn_m m n;
+  rewrite mul_com n m;
+  reflexivity
+end;
+
+opaque symbol mul_distr_l a x y: π (mul a (add x y) = add (mul a x) (mul a y)) ≔
+begin
+  refine ind_ℙeano (λ c, `∀ x, `∀ y, mul c (add x y) = add (mul c x) (mul c y)) _ _
+  {reflexivity}
+  {
+    assume a IH x y;
+    rewrite left mult_Sn_m;
+    rewrite (IH x y);
+    rewrite left mult_Sn_m;
+    rewrite left mult_Sn_m;
+    rewrite add_assoc;
+    rewrite add_com;
+    rewrite add_com x y;
+    rewrite left add_assoc;
+    rewrite add_assoc;
+    rewrite add_com;
+    rewrite add_com x (mul a x);
+    reflexivity
+  }
+end;
+
+opaque symbol mul_distr_r a x y: π (mul (add x y) a = add (mul x a) (mul y a)) ≔
+begin
+  assume a x y;
+  rewrite mul_com;
+  rewrite mul_com x a;
+  rewrite mul_com y a;
+  refine mul_distr_l a x y
+end;
+
+opaque symbol mul_assoc x y z : π (mul x (mul y z) = mul (mul x y) z) ≔
+begin
+  assume x y;
+  refine ind_ℙeano (λ c, mul x (mul y c) = mul (mul x y) c) _ _
+  { reflexivity}
+  { 
+    assume z IH;
+    rewrite left mult_n_S;
+    rewrite mul_distr_l;
+    rewrite IH;
+    rewrite left mult_n_S;
+    reflexivity
+  }
+end;
+
 
 // enable printing of positive numbers in decimal notation
 
