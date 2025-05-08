@@ -519,13 +519,31 @@ notation ≥ infix 10;
 symbol > x y ≔ ¬ (x ≤ y);
 notation > infix 10;
 
-symbol <_≤ x y : π (x < y ⇒ x ≤ y) ≔
+opaque symbol <_≤ x y : π (x < y ⇒ x ≤ y) ≔
 begin
   assume x y;
   refine ind_Comp (λ u, istrue(isLt u) ⇒ istrue(isGt u) ⇒ ⊥) _ _ _ (x ≐ y)
    { refine (λ x _, x) }
    { refine (λ _ y, y) }
    { refine (λ x _, x) }
+end;
+
+opaque symbol <_neg_≤ x y : π (x < y ⇒ ¬ (y ≤ x)) ≔
+begin
+  assume x y;
+  simplify;
+  have e : π (istrue (isLt (x ≐ y)) ⇒  ¬ ¬ (istrue (isGt (y ≐ x))))
+  { rewrite ≐_com y x; };
+  refine ind_Comp (λ c, istrue (isLt c) ⇒ ¬ (¬ (istrue (isGt (opp c))))) _ _ _ (x ≐ y)
+  { assume Hbot Hbotbot; refine Hbot }
+  { assume H H2; refine H2 H }
+  { assume Hbot Hbotbot; refine Hbot };
+  assume H1; refine (e H1);
+end;
+
+opaque symbol >_neg_≤ x y : π (x > y ⇒ (¬ (x ≤ y))) ≔
+begin
+  assume x y; refine (λ x, x);
 end;
 
 // Compatibility of directional comparison operators
@@ -574,12 +592,103 @@ begin
   { assume x; assume y f h; apply ⊥ₑ; refine f }
 end;
 
+opaque symbol ≐_Eq x : π (x ≐ x = Eq) ≔
+begin
+  induction
+  {reflexivity}
+  {
+    induction
+    {assume x H; refine H }
+    {assume x H; refine H }
+    {reflexivity}
+  }
+  {
+    induction
+    {assume x H; refine H }
+    {assume x H; refine H }
+    {reflexivity}
+  }
+end;
+
 // Reflexivity
 
-symbol ≤_refl x : π (x ≤ x) ≔
+opaque symbol ≤_refl x : π (x ≤ x) ≔
 begin
   assume x; refine ≤_compat_add Z0 Z0 x _; refine (λ x, x);
 end;
+
+opaque symbol ≥_refl x : π (x ≥ x) ≔
+begin
+  assume x; simplify; assume H;
+  have G: π (istrue (isLt (Eq))) { rewrite left ≐_Eq x ; refine H };
+  apply ⊥ₑ G
+end;
+
+opaque symbol ≥_¬_< x y : π ((x ≥ y) ⇒ ¬ (x < y)) ≔
+begin
+  assume x y; assume H; refine H
+end;
+
+
+opaque symbol <_no_refl x : π (¬ (x < x)) ≔
+begin
+  assume x;
+  simplify <;
+  refine fold_⇒ _;
+  rewrite ≐_Eq;
+  refine (λ x,x);
+end;
+
+opaque symbol >_no_refl x : π (¬ (x > x)) ≔
+begin
+  assume x;
+  simplify >;
+  simplify ≤;
+  refine fold_⇒ _;
+  rewrite ≐_Eq;
+  simplify;
+  assume contra;
+  apply contra;
+  refine (λ x,x);
+end;
+
+opaque symbol ≤_≥ x y: π (x ≥ y ⇔ y ≤ x) ≔
+begin
+  assume x y;
+  apply ∧ᵢ
+  {
+    have e: π (¬ (istrue (isLt (x ≐ y))) ⇒ ¬ (istrue (isGt (y ≐ x)))) {
+      rewrite ≐_com y x;
+      refine ind_Comp (λ c, ¬ (istrue (isLt c)) ⇒ ¬ (istrue (isGt (opp c)))) _ _ _ (x ≐ y)
+      { refine (λ x, x) }
+      { assume H1 H2; refine H1 H2 }
+      { refine (λ x, x) };
+    };
+    refine e;
+  }
+  {
+    have e: π (¬ (istrue (isGt (y ≐ x))) ⇒ ¬ (istrue (isLt (x ≐ y)))) {
+      rewrite ≐_com y x;
+      refine ind_Comp (λ c, ¬ (istrue (isGt (opp c))) ⇒ ¬ (istrue (isLt c))) _ _ _ (x ≐ y)
+      { refine (λ x, x) }
+      { assume H1 H2; refine H1 H2 }
+      { refine (λ x, x) }
+    };
+    refine e
+  };
+end;
+
+opaque symbol eq_le_incl x y: π (x = y ⇒ x ≤ y) ≔
+begin
+  assume x y Heq; rewrite Heq; refine ≤_refl y
+end;
+
+opaque symbol eq_ge_incl x y: π (x = y ⇒ x ≥ y) ≔
+begin
+  assume x y Heq; rewrite Heq; refine ≥_refl y
+end;
+
+
 
 // Antisymmetry
 
@@ -588,7 +697,7 @@ begin
   assume x y;
   have e : π (¬ (istrue(isGt (x ≐ y))) ⇒ ¬ (istrue(isGt (y ≐ x))) ⇒ x = y)
   { rewrite ≐_com } ;
-  refine ind_Comp (λ c, (y ≐ x) = c ⇒ ¬ (istrue(isGt (opp c))) ⇒ ¬ (istrue(isGt c)) ⇒ x = y) _ _ _ (y ≐ x) _
+    refine ind_Comp (λ c, ((y ≐ x) = c) ⇒ ¬ (istrue(isGt (opp c))) ⇒ ¬ (istrue(isGt c)) ⇒ x = y) _ _ _ (y ≐ x) _
    { assume H h1 h2; symmetry; refine ≐_decides y x H }
    { assume h1 f h2; apply ⊥ₑ; refine f ⊤ᵢ }
    { assume h1 h2 f; apply ⊥ₑ; refine f ⊤ᵢ }
@@ -610,6 +719,13 @@ begin
    refine (λ p : π ((Z0 ≤ (z + — x)) ⇒ (x ≤ z)), p) _;
    rewrite left .[in x ≤ z] simpl_inv_right z x;
    refine ≤_compat_add Z0 (z - x) x;
+end;
+
+symbol <_implies_neg_≥ x y : π (x < y ⇒ ¬ (x ≥ y)) ≔
+begin
+  assume x y;
+  assume xLty neg_xLty;
+  refine neg_xLty xLty
 end;
 
 symbol <_trans_1 x y z : π (x < y ⇒ y ≤ z ⇒ x < z) ≔
@@ -652,7 +768,64 @@ with Zpos $x * Zneg $y ↪ Zneg (mul $x $y)
 with Zneg $x * Zpos $y ↪ Zneg (mul $x $y)
 with Zneg $x * Zneg $y ↪ Zpos (mul $x $y);
 
-// TO BE CONTINUED (theorems about multiplication)
+symbol *_com x y : π (x * y = y * x) ≔
+begin
+  induction
+  // case Z0
+  { induction { reflexivity } { reflexivity } { reflexivity } }
+  // case Zpos
+  { assume x;
+    induction
+     { reflexivity }
+     { assume y; simplify; rewrite mul_com; reflexivity }
+     { assume y; simplify;rewrite mul_com;reflexivity } }
+  // case Zneg
+  { assume x;
+    induction
+     { reflexivity }
+     { assume y; simplify; rewrite mul_com; reflexivity; }
+     { assume y; simplify; rewrite mul_com; reflexivity } }
+end;
+
+opaque symbol *_assoc x y z : π ((x * y) * z = x * (y * z)) ≔
+begin
+  induction
+  {reflexivity}
+  {
+    assume x;
+    induction
+    {reflexivity}
+    { assume y;
+      induction
+      {reflexivity}
+      {simplify; assume z;  rewrite mul_assoc; reflexivity}
+      {simplify; assume z;  rewrite mul_assoc; reflexivity}
+    }
+    {assume y;
+      induction
+      {reflexivity}
+      {assume z; simplify; rewrite mul_assoc; reflexivity }
+      {assume z; simplify; rewrite mul_assoc; reflexivity}
+    }
+  }
+  {
+    assume x;
+    induction
+    {reflexivity}
+    { assume y;
+      induction
+      {reflexivity}
+      {simplify; assume z;  rewrite mul_assoc; reflexivity}
+      {simplify; assume z;  rewrite mul_assoc; reflexivity}
+    }
+    {assume y;
+      induction
+      {reflexivity}
+      {assume z; simplify; rewrite mul_assoc; reflexivity }
+      {assume z; simplify; rewrite mul_assoc; reflexivity}
+    }
+  }
+end;
 
 // shortcuts
 
@@ -694,3 +867,146 @@ builtin "*" ≔ *;
 builtin "-" ≔ —;
 
 type -42;
+
+opaque symbol *_neutral x : π ((x * 1) = x) ≔
+begin
+  induction {reflexivity} {reflexivity} {reflexivity}
+end;
+
+opaque symbol *_cancel x : π ((x * 0) = 0) ≔
+begin
+  induction {reflexivity} {reflexivity} {reflexivity}
+end;
+
+opaque symbol ge_implies_diff_nonneg t s: π (t ≥ s ⇒ t - s ≥ 0) ≔
+begin
+  assume t s H;
+  refine ∧ₑ₂ (≤_≥ (t - s) 0) _;
+  have g: π (s ≤ t) { refine ∧ₑ₁ (≤_≥ t s) H; };
+  have g2: π (s + (— s) ≤  t + (— s)) { refine ≤_compat_add s t (— s) g };
+  rewrite left -_same s;
+  refine g2
+end;
+
+opaque symbol diff_nonneg_implies_ge t s: π (t - s ≥ 0 ⇒ t ≥ s) ≔
+begin
+  assume t s H;
+  refine ∧ₑ₂ (≤_≥ t s) _;
+  have e: π (0 ≤ t - s) { refine (∧ₑ₁ (≤_≥ (t - s) 0)) H };
+  have H2: π (0 + s ≤ (t - s) + s) {
+    refine ≤_compat_add 0 (t - s) s e;
+  };
+  have H3: π (0 + s ≤ t) {
+    rewrite left simpl_inv_right t s;
+    refine H2;
+  };
+  refine H3
+end;
+
+symbol lt_succ_self x a : π (x < x + (Zpos a)) ≔
+begin
+  assume x a;
+  have e: π (x + 0 = x) { reflexivity };
+  rewrite left .[ t in t < _] e;
+  rewrite +_com;
+  rewrite +_com x (Zpos a);
+  refine <_compat_add 0 (Zpos a) x _;
+  apply ⊤ᵢ
+end;
+
+
+opaque symbol ≤-norm t s : π (t ≤ s ⇒ ¬ (t ≥ s + 1)) ≔
+begin
+  assume t s Ht≤s;
+  refine <_implies_neg_≥ t (s + _1) _;
+  refine <_trans_2 t s (s + 1)  Ht≤s _;
+  refine lt_succ_self s _ { refine H } {}; 
+end;
+
+opaque symbol opp_le_mono x y: π (x ≥ y ⇔ (— x ≤ — y)) ≔
+begin
+  assume x y;
+  simplify;
+  rewrite ≐_opp x y;
+  apply ∧ᵢ
+  {
+    refine ind_Comp (λ c, (istrue (isLt c) ⇒ ⊥) ⇒ (istrue (isGt (opp c)) ⇒ ⊥)) _ _ _ (x ≐ y)
+    { assume H; refine H }
+    { assume H1 H2; refine H1 H2  }
+    { assume H; refine H }
+  }
+  {
+    refine ind_Comp (λ c, (istrue (isGt (opp c)) ⇒ ⊥) ⇒ (istrue (isLt c) ⇒ ⊥)) _ _ _ (x ≐ y)
+    { assume H; refine H }
+    { assume H1 H2; refine H1 H2  }
+    { assume H; refine H }
+  }
+end;
+
+opaque symbol opp_lt_mono x y: π (x > y ⇔ (— x < — y)) ≔
+begin
+  assume x y;
+  simplify;
+  rewrite ≐_opp x y;
+  apply ∧ᵢ
+  {
+    refine ind_Comp (λ c, ((istrue (isGt c) ⇒ ⊥) ⇒ ⊥) ⇒ istrue (isLt (opp c))) _ _ _ (x ≐ y)
+    { assume H; refine H (λ x, x) }
+    { assume H; refine H (λ x, x) }
+    { assume H; apply ⊤ᵢ }
+  }
+  {
+    refine ind_Comp (λ c, istrue (isLt (opp c)) ⇒ ((istrue (isGt c) ⇒ ⊥) ⇒ ⊥)) _ _ _ (x ≐ y)
+    {  assume contra H; apply contra  }
+    {  assume contra H; apply contra  }
+    {  assume Hislt Hngt; refine Hngt Hislt   }
+  }
+end;
+
+opaque symbol neg_ge_imp_lt x y: π ((¬ (x ≥ y)) ⇒ x < y) ≔
+begin
+assume x y;
+simplify;
+have e: π ( ¬ ¬ (istrue (isLt (x ≐ y))) ⇒ istrue (isLt (x ≐ y))) {
+  refine ind_Comp (λ c, ¬ ¬ (istrue (isLt c)) ⇒ istrue (isLt c)) _ _ _ (x ≐ y)
+  { assume H; refine H (λ x, x)  }
+  { assume H; apply ⊤ᵢ }
+  { assume H; refine H (λ x, x) }
+};
+refine e
+end;
+
+opaque symbol neg_le_imp_gt x y: π ((¬ (x ≤ y)) ⇒ x > y) ≔
+begin
+assume x y; refine (λ x, x)
+end;
+
+symbol <_> x y: π (x < y ⇔ y > x) ≔
+begin
+  assume x y;
+  apply ∧ᵢ
+  {
+    have e: π (istrue (isLt (x ≐ y)) ⇒  ¬ ¬ istrue (isGt (y ≐ x))) {
+      rewrite  ≐_com;
+      refine ind_Comp (λ c, istrue (isLt (opp c)) ⇒ ¬ (¬ (istrue (isGt c)))) _ _ _ (y ≐ x)
+      { assume contra; apply ⊥ₑ contra }
+      { assume contra; apply ⊥ₑ contra }
+      { assume islt ngt; refine ngt islt }
+    };
+    refine e;
+  }
+  {
+    have e: π (¬ ¬ istrue (isGt (y ≐ x)) ⇒ istrue (isLt (x ≐ y))) {
+      rewrite ≐_com;
+      refine ind_Comp  (λ c, ¬ (¬ (istrue (isGt (opp c)))) ⇒ istrue (isLt c)) _ _ _ (x ≐ y)
+      { assume H; refine H (λ x, x) }
+      { assume H; apply ⊤ᵢ }
+      { assume H; refine H (λ x, x) }
+    };
+    refine e
+  }
+end;
+
+opaque symbol geq-tighten t s: π (¬ (t ≥ s) ⇒ s ≥ t + 1) ≔
+begin
+admitted;
