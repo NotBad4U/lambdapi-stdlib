@@ -129,6 +129,55 @@ begin
     {reflexivity}
 end;
 
+symbol imp : 𝔹 → 𝔹 → 𝔹;
+
+notation imp infix left 20;
+
+rule true imp true ↪ true
+with true imp false ↪ false
+with false imp true ↪ true
+with false imp false ↪ true;
+
+opaque symbol ⇒_istrue [p q : 𝔹] : π(p imp q) → π(p ⇒ q) ≔
+begin
+  induction
+  { induction
+    {
+      simplify;
+      assume h1; refine (λ x, x)
+    }
+    {
+      simplify; assume h1 h2; refine h1
+    }
+  }
+  {
+    induction
+    {
+      simplify;
+      assume h1 h2; apply h1
+    }
+    {
+      simplify;
+      assume h1; refine (λ x, x)
+    }
+   }
+end;
+
+
+opaque symbol ¬_istrue [p: 𝔹] : π(not p) → π(¬ p) ≔
+begin
+  induction
+  { assume contra h; apply ⊥ₑ contra }
+  { assume b hbot; apply hbot }
+end;
+
+opaque symbol istrue_not [p: 𝔹] : π(¬ p) → π(not p)  ≔
+begin
+  induction
+  { assume h; refine h _; apply ⊤ᵢ }
+  { assume h; apply ⊤ᵢ }
+end;
+
 opaque symbol ∨_istrue [p q : 𝔹] : π(p or q) → π(p ∨ q) ≔
 begin
   induction
