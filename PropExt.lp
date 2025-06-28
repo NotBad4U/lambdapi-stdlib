@@ -9,6 +9,29 @@ require open Stdlib.Set Stdlib.Prop Stdlib.FOL Stdlib.Eq Stdlib.Impred Stdlib.Cl
 
 symbol propExt x y : (π x → π y) → (π y → π x) → π (x = y);
 
+opaque symbol imp_eq_or x y: π ((¬ x ∨ y) = (x ⇒ y)) ≔
+begin
+assume x y;
+refine propExt (¬ x ∨ y) (x ⇒ y) _ _
+{
+  assume Hnxory;
+  apply ∨ₑ Hnxory
+  { assume nx Hx; refine ¬ₑ nx Hx }
+  { refine (λ x y, x); }
+}
+{ assume Hximpy; apply imply_to_or Hximpy }
+end;
+
+opaque symbol iff_equiv_eq x y: π ((x ⇔ y) = (x = y)) ≔
+begin
+assume x y;
+refine propExt (x ⇔ y) (x = y) _ _
+{
+  assume H;
+  refine propExt x y _ _ { assume Hx; refine ∧ₑ₁ H  Hx } { assume Hy; refine ∧ₑ₂ H  Hy };
+}
+{ assume Hxeqy; rewrite Hxeqy; apply ⇔_refl }
+end;
 
 /******************************************************************************
  *  Commutativity, symmetry and polarity                                                     
@@ -29,6 +52,11 @@ begin
       {assume h2; refine ∨ᵢ₁ h2}}
 end;
 
+opaque symbol ∨_assoc x y z: π ((x ∨ y ∨ z) = ((x ∨ y) ∨ z)) ≔
+begin
+admit
+end;
+
 opaque symbol ∧_com x y:
  π ((x ∧ y) = (y ∧ x)) ≔
 begin
@@ -36,6 +64,11 @@ begin
   refine propExt (x ∧ y) (y ∧ x) _ _
     {assume h; refine ∧ᵢ (∧ₑ₂ h) (∧ₑ₁ h)}
     {assume h; refine ∧ᵢ (∧ₑ₂ h) (∧ₑ₁ h)}
+end;
+
+opaque symbol ∧_assoc x y z: π ((x ∧ y ∧ z) = ((x ∧ y) ∧ z)) ≔
+begin
+admit
 end;
 
 opaque symbol ⇔_com x y:

@@ -14,11 +14,15 @@ builtin "P" ≔ π;
 
 constant symbol ⊤ : Prop; // \top
 
+// builtin "top" ≔ ⊤;
+
 constant symbol ⊤ᵢ : π ⊤;
 
 // false
 
 constant symbol ⊥ : Prop; // \bot
+
+// builtin "bot" ≔ ⊥;
 
 constant symbol ⊥ₑ [p] : π ⊥ → π p;
 
@@ -40,6 +44,8 @@ end;
 symbol ¬ p ≔ p ⇒ ⊥; // ~~ or \neg
 
 notation ¬ prefix 35;
+
+// builtin "not" ≔ ¬;
 
 // conjunction
 
@@ -92,3 +98,14 @@ assert p q ⊢ ¬ p ⇒ q ≡ (¬ p) ⇒ q;
 assert p q ⊢ ¬ p ⇔ q ≡ (¬ p) ⇔ q;
 assert p q r ⊢ p ⇒ q ∧ r ≡ p ⇒ (q ∧ r);
 assert p q r ⊢ p ⇒ q ∨ r ≡ p ⇒ (q ∨ r);
+
+opaque symbol ∨_assoc x y z: π ((x ∨ y ∨ z) ⇔ ((x ∨ y) ∨ z)) ≔
+begin
+admit
+end;
+
+
+// builtin "and" ≔ ∧;
+// builtin "or"  ≔ ∨;
+// builtin "imp" ≔ ⇒;
+// builtin "eqv" ≔ ⇔;

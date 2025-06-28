@@ -220,6 +220,16 @@ begin
   { assume q i; apply ⊥ₑ i; }
 end;
 
+symbol xor : 𝔹 → 𝔹 → 𝔹;
+
+notation xor infix left 22;
+
+rule false xor false ↪ false
+with false xor true ↪ true
+with true xor false ↪ true
+with true xor true ↪ false
+;
+
 // if-then-else
 
 symbol if : 𝔹 → Π [a], τ a → τ a → τ a;

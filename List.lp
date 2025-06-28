@@ -198,7 +198,7 @@ protected with nosimpl.
 */
 
 require open Stdlib.Set Stdlib.Prop Stdlib.FOL Stdlib.Eq
-  Stdlib.Nat Stdlib.Bool Stdlib.Prod;
+  Stdlib.Nat Stdlib.Bool Stdlib.Prod Stdlib.HOL;
 
 (a:Set) inductive 𝕃:TYPE ≔
 | □ : 𝕃 a // \Box
@@ -309,6 +309,8 @@ begin
   { reflexivity; }
   { assume e l h i; apply ⊥ₑ; apply s≠0 i; }
 end;
+
+
 
 symbol nilp [a] l ≔ is0 (@size a l);
 
@@ -1679,3 +1681,15 @@ rule prodn □ ↪ 1
 with prodn ($x ⸬ $l) ↪ $x * prodn $l;
 
 assert ⊢ prodn (3 ⸬ 2 ⸬ 1 ⸬ □) ≡ 3 !;
+
+symbol foldl [a b]: τ (a ⤳ b ⤳ a) → τ a → 𝕃 b → τ a;
+rule foldl _ $acc □ ↪ $acc
+with foldl $op $acc ($h ⸬ $tl) ↪ foldl $op ($op $acc $h) $tl;
+
+assert ⊢ sumn (3 ⸬ 2 ⸬ 1 ⸬ □) ≡ foldl (+) 0 (3 ⸬ 2 ⸬ 1 ⸬ □);
+
+symbol foldr [a b]: τ (b ⤳ a ⤳ a) → τ a → 𝕃 b → τ a;
+rule foldr _ $acc □ ↪ $acc
+with foldr $op $acc ($h ⸬ $tl) ↪ $op $h (foldr $op $acc $tl);
+
+assert ⊢ sumn (3 ⸬ 2 ⸬ 1 ⸬ □) ≡ foldr (+) 0 (3 ⸬ 2 ⸬ 1 ⸬ □);
