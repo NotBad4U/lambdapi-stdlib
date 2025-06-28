@@ -106,3 +106,14 @@ assert p q ⊢ ¬ p ⇒ q ≡ (¬ p) ⇒ q;
 assert p q ⊢ ¬ p ⇔ q ≡ (¬ p) ⇔ q;
 assert p q r ⊢ p ⇒ q ∧ r ≡ p ⇒ (q ∧ r);
 assert p q r ⊢ p ⇒ q ∨ r ≡ p ⇒ (q ∨ r);
+
+opaque symbol ∨_assoc x y z: π ((x ∨ y ∨ z) ⇔ ((x ∨ y) ∨ z)) ≔
+begin
+admit
+end;
+
+
+// builtin "and" ≔ ∧;
+// builtin "or"  ≔ ∨;
+// builtin "imp" ≔ ⇒;
+// builtin "eqv" ≔ ⇔;

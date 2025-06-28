@@ -100,6 +100,10 @@ rule val H ↪ 1
 with val (O $x) ↪ 2 * val $x
 with val (I $x) ↪ val (O $x) +1;
 
+symbol of_succ_nat: ℕ → ℙ;
+rule of_succ_nat 0 ↪ H
+with of_succ_nat ($x +1) ↪ succ (of_succ_nat $x);
+
 assert ⊢ val (O (I H)) ≡ 6;
 
 opaque opaque symbol valS x : π(val (succ x) = val x +1) ≔
@@ -760,6 +764,28 @@ begin
   }
 end;
 
+// Binary or operator
+symbol ⎪ : ℙ → ℙ → ℙ; notation ⎪ infix 22;
+rule H ⎪ (O $q) ↪ (I $q)
+with H ⎪ (I $q) ↪ (I $q)
+with H ⎪ H ↪ H
+with (O $p) ⎪ H ↪ (I $p)
+with (I $p) ⎪ H ↪ (I $p)
+with (O $p) ⎪ (O $q) ↪ (O ($p ⎪ $q))
+with (O $p) ⎪ (I $q) ↪ (I ($p ⎪ $q))
+with (I $p) ⎪ (O $q) ↪ (I ($p ⎪ $q))
+with (I $p) ⎪ (I $q) ↪ (I ($p ⎪ $q));
+
+symbol & : ℙ → ℙ → ℙ; notation & infix 20;
+rule H & (O $q) ↪ (O $q)
+with H & (I $q) ↪ (I $q)
+with H & H ↪ H
+with (O $p) & H ↪ (O $p)
+with (I $p) & H ↪ (I $p)
+with (O $p) & (O $q) ↪ (O ( $p & $q))
+with (O $p) & (I $q) ↪ (O ( $p & $q))
+with (I $p) & (O $q) ↪ (O ( $p & $q))
+with (I $p) & (I $q) ↪ (I ( $p & $q));
 
 // enable printing of positive numbers in decimal notation
 

@@ -845,6 +845,13 @@ begin
   }
 end;
 
+//TODO:
+opaque symbol *_reg_r x y k : π (x * k = y * k ⇒ x = y) ≔
+begin
+  assume x y k;
+  admit 
+end;
+
 // shortcuts
 
 symbol _1 ≔ Zpos _1;
@@ -1023,6 +1030,72 @@ begin
   }
 end;
 
+opaque symbol >_to_≥ x y : π (x > y ⇒ x ≥ y) ≔
+begin
+  assume x y;
+  refine ind_Comp  (λ c, ¬ (¬ (istrue (isGt  (c)))) ⇒ ¬ istrue (isLt c)) _ _ _ (x ≐ y)
+  { assume H; refine (λ x, x) }
+  { assume H H2; refine H (λ x, x) }
+  { assume H; refine (λ x, x) }
+end;
+
+opaque symbol <_to_≤ x y : π (x < y ⇒ x ≤ y) ≔
+begin
+  assume x y;
+  simplify;
+  refine ind_Comp  (λ c, (istrue (isLt (c))) ⇒ ¬ istrue (isGt c)) _ _ _ (x ≐ y)
+  { assume H; refine (λ x, x) }
+  { assume H H2; refine H2 }
+  { assume H H2; refine H }
+end;
+
+opaque symbol >_strengthen t s: π (t > s ⇒ t ≥ (s + 1)) ≔
+begin
+  assume t s H;
+  have g: π (s < t) { refine  (∧ₑ₂ (@<_> s t)) H;  };
+  // remove H;
+  // refine (∧ₑ₂ (≤_≥ t (s + 1))) _;
+  // have s≤t: π (s ≤ t) { refine <_to_≤ s t g };
+  // remove g;
+admitted; 
+
 opaque symbol geq-tighten t s: π (¬ (t ≥ s) ⇒ s ≥ t + 1) ≔
 begin
 admitted;
+
+opaque symbol <_implies_diff_< t s: π (t > s ⇒ t - s > 0) ≔
+begin
+  assume t s H;
+  refine ∧ₑ₁ (<_> 0 (t - s) ) _;
+  have g: π (s < t) { refine ∧ₑ₂ (<_> s t) H; };
+  remove H;
+  have g2: π (s + (— s) <  t + (— s)) { refine <_compat_add s t (— s) g };
+  rewrite left -_same s;
+  refine g2
+end;
+
+opaque symbol diff_>_implies_> t s: π (t - s > 0 ⇒ t > s) ≔
+begin
+  assume t s H;
+  refine ∧ₑ₁ (<_> s t) _;
+  have e: π (0 < t - s) { refine (∧ₑ₂ (<_> 0 (t - s))) H; };
+  have H2: π (0 + s < (t - s) + s) {
+    refine <_compat_add 0 (t - s) s e;
+  };
+  have H3: π (0 + s < t) {
+    rewrite left simpl_inv_right t s;
+    refine H2;
+  };
+  refine H3
+end;
+
+symbol power_pos (x: ℤ) (p: ℙ) : ℤ;
+rule power_pos $x H ↪ $x
+with power_pos $x (O $p) ↪ let r ≔ power_pos $x $p in r * r
+with power_pos $x (I $p) ↪ let r ≔ power_pos $x $p in $x * r * r
+;
+
+symbol ^ : ℤ → ℤ → ℤ; notation ^ infix 3;
+rule $x ^ Z0 ↪ 1
+with $x ^ (Zpos $p) ↪ power_pos $x $p
+with $x ^ (Zneg _) ↪ Z0;

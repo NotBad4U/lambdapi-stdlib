@@ -1,10 +1,13 @@
 require open Stdlib.Prop;
+require open Stdlib.Impred;
 require open Stdlib.FOL;
 require open Stdlib.Eq;
 require open Stdlib.Nat;
 require Stdlib.Bool;
 require open Stdlib.Set;
 require open Stdlib.List;
+require open Stdlib.Prod;
+require open Stdlib.Tactic;
 
 inductive prop: TYPE ≔
 |pTrue: prop
@@ -15,13 +18,14 @@ inductive prop: TYPE ≔
 | pOther: ℕ → prop
 ;
 
+symbol pNot p ≔ pImpl p pFalse;
+
+symbol pIff p q ≔ pAnd (pImpl p q) (pImpl q p);
+
 symbol propS: Set;
 
 rule τ propS ↪ prop;
 
-
-symbol o: Set;
-rule τ o ↪ Prop;
 
 symbol not_found: Prop; // Just a simple opaque definition to represent an error message.
 
@@ -254,52 +258,7 @@ begin
     }
 end;
 
-// Main theorem
-// opaque symbol provable_sound [goal: prop] [hyps: 𝕃 propS] :
-//     π (provable goal hyps) → 
-//     Π [ctx: 𝕃 o], π (propD ctx (All hyps)) →
-//     π (propD ctx goal) ≔
-// begin
-//     induction
-//     { assume ctx H σ H2; apply I }
-//     { assume ctx H σ H2; apply (knows_sound σ ctx pFalse H);  apply H2 }
-//     { assume a IH1 b IH2 ctx' H σ H2;
-//         have G: π ((provable a ctx') ∧ (provable b ctx') ) {
-//             refine ∧_istrue H
-//         };
-//         apply ∧ᵢ
-//         { refine (IH1 ctx' (∧ₑ₁ G)) σ H2 }
-//         { refine (IH2 ctx' (∧ₑ₂ G)) σ H2 };
-//     }
-//     {
-//         assume a IH1 b IH2 ctx' H σ H2;
-//         have G: π ((provable a ctx') ∨ (provable b ctx') ) {
-//             refine ∨_istrue H
-//         };
-//         apply ∨ₑ G
-//         {  assume Ga; apply ∨ᵢ₁; refine (IH1 ctx' Ga σ H2) }
-//         { assume Gb; apply ∨ᵢ₂; refine (IH2 ctx' Gb σ H2) };
-//     }
-//     {
-        
-//         assume a IH1 b IH2 ctx H σ H2 Ha;
-//         apply (IH2 (a ⸬ ctx) H σ);
-//         apply ∧ᵢ
-//         { apply Ha }
-//         { apply H2 }
-//     }
-//     {
-//        assume i hyps IH σ H2;
-//        have G: π ((∈ prop_eq (pOther i) hyps)  ∨ (∈ prop_eq pFalse hyps) ) {
-//         refine (∨_istrue IH); 
-//        };
-//        apply ∨ₑ G
-//        { assume Gl; apply (knows_sound σ hyps (pOther i) Gl H2); }
-//        { assume Gr; refine (@⊥ₑ (nth not_found σ i) (knows_sound σ hyps (pFalse) Gr H2))  }
-//     }
-// end;
-
-opaque symbol provable_sound [goal: prop] [hyps: 𝕃 propS] [ctx: 𝕃 o] :
+opaque symbol provable_sound (goal: prop) (hyps: 𝕃 propS) (ctx: 𝕃 o) :
     π (provable goal hyps) → 
     π (propD ctx (All hyps)) →
     π (propD ctx goal) ≔
@@ -343,10 +302,18 @@ begin
     }
 end;
 
+constant symbol R : TYPE;
+constant symbol Index : ℕ → R;
+constant symbol New : ℕ → R;
 
-require open Stdlib.Prod;
+symbol case [a] : R → (ℕ → τ a) → (ℕ → τ a) → τ a;
+rule case (Index $i) $f _ ↪ $f $i
+with case (New $i) _ $g ↪ $g $i;
 
-
+sequential symbol index: ℕ → Π [a], τ a → τ(list a) → R;
+rule index $k _ □ ↪ New $k
+with index $k $x ($x ⸬ _) ↪ Index $k // Here is the magic...
+with index $k $x ($y ⸬ $l) ↪ index ($k +1) $x $l;
 
 sequential symbol propReify: (𝕃 o) →  Prop → τ (propS × (list o));
 rule propReify $ctx ⊤ ↪ (pTrue ‚ $ctx)
@@ -357,26 +324,28 @@ with propReify $ctx ($x ∧ $y) ↪ let res1 ≔  (propReify $ctx $x) in
 with propReify $ctx ($x ∨ $y) ↪ let res1 ≔  (propReify $ctx $x) in
                                 let res2 ≔  (propReify (res1 ₂) $y) in
                                 (pOr (res1 ₁) (res2 ₁) ‚ (res2 ₂))
+with propReify $ctx ($x ⇒ ⊥) ↪ let res ≔  (propReify $ctx $x) in
+                                (pNot (res ₁)‚ (res ₂))
 with propReify $ctx ($x ⇒ $y) ↪ let res1 ≔  (propReify $ctx $x) in
                                 let res2 ≔  (propReify (res1 ₂) $y) in
                                 (pImpl (res1 ₁) (res2 ₁) ‚ (res2 ₂))
-with propReify $ctx $x ↪ ((pOther (size $ctx + 1)) ‚ ($ctx ++ ($x ⸬ □)))
-;
+with propReify $ctx ($x ⇔ $y) ↪ let res1 ≔  (propReify $ctx $x) in
+                                let res2 ≔  (propReify (res1 ₂) $y) in
+                                (pIff (res1 ₁) (res2 ₁) ‚ (res2 ₂))
+with propReify $ctx $x ↪ 
+    case (index _0 $x $ctx) (λ i, pOther i ‚ $ctx) (λ i, pOther i ‚ ($ctx ++ ($x ⸬ □)));
 
-symbol tauto ≔ λ goal, let reify ≔ (propReify □  goal) in @provable_sound (reify ₁) □ (reify ₂);
+symbol reify goal ≔ propReify □ goal; 
 
-private symbol example1: π (3 ≥ 0 ⇔ ⊤) ≔
-begin
-have g: π (propD □ ((propReify □  (0 ≥ 0 ⇔ ⊤)) ₁)) {
-    refine tauto (0 ≥ 0 ⇔ ⊤) ⊤ᵢ ⊤ᵢ;
-};
-refine g
-end;
+symbol tauto_aux [goal] ≔ let res ≔ reify goal in provable_sound (res ₁) □ (res ₂);
 
-private symbol example2: π ((⊤ ∧ ⊤) ⇒ (⊤ ∨ (⊤ ∧ (⊤ ⇒ ⊤)))) ≔
-begin
-have g: π (propD □ ((propReify □  ((⊤ ∧ ⊤) ⇒ (⊤ ∨ (⊤ ∧ (⊤ ⇒ ⊤))))) ₁)) {
-    refine tauto ((⊤ ∧ ⊤) ⇒ (⊤ ∨ (⊤ ∧ (⊤ ⇒ ⊤)))) ⊤ᵢ ⊤ᵢ;
-};
-refine g
-end;
+symbol tauto ≔ #refine "(tauto_aux ⊤ᵢ ⊤ᵢ)";
+
+private symbol example1: π ((⊤ ∧ ⊤) ⇒ ⊤ ∨ ⊤ ∧ (⊤ ⇒ ⊤)) ≔
+begin eval tauto; end;
+
+private symbol example2 a : π (a ∧ a ⇒ a) ≔
+begin assume a; eval tauto; end;
+
+private symbol example3: π (3 ≥ 0 ⇔ ⊤) ≔
+begin eval tauto; end;

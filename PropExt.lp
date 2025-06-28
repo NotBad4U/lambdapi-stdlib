@@ -15,6 +15,30 @@ begin
   refine ind_eq (eq_sym h0) (λ x, x) h1
 end;
 
+opaque symbol imp_eq_or x y: π ((¬ x ∨ y) = (x ⇒ y)) ≔
+begin
+assume x y;
+refine propExt (¬ x ∨ y) (x ⇒ y) _ _
+{
+  assume Hnxory;
+  apply ∨ₑ Hnxory
+  { assume nx Hx; refine ¬ₑ nx Hx }
+  { refine (λ x y, x); }
+}
+{ assume Hximpy; apply imply_to_or Hximpy }
+end;
+
+opaque symbol iff_equiv_eq x y: π ((x ⇔ y) = (x = y)) ≔
+begin
+assume x y;
+refine propExt (x ⇔ y) (x = y) _ _
+{
+  assume H;
+  refine propExt x y _ _ { assume Hx; refine ∧ₑ₁ H  Hx } { assume Hy; refine ∧ₑ₂ H  Hy };
+}
+{ assume Hxeqy; rewrite Hxeqy; apply ⇔_refl }
+end;
+
 /******************************************************************************
  *  Commutativity, associativity and distributivity                                                     
  ******************************************************************************/

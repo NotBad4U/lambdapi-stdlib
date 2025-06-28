@@ -88,7 +88,7 @@ expnMn : (m1 * m2) ^ n = ... The operands of other operators are selected
 using the l/r suffixes.
 */
 
-require open Stdlib.Bool;
+require open Stdlib.Bool Stdlib.HOL;
 
 inductive ℕ : TYPE ≔
 | _0 : ℕ
@@ -347,6 +347,13 @@ begin
       rewrite left addnS y y; apply +1_inj j }
   }
 end;
+
+symbol even: ℕ → 𝔹;
+rule even _0 ↪ true
+with even (_0 +1) ↪ false
+with even ($x +1 +1) ↪ even $x;
+
+symbol odd (n: ℕ): 𝔹 ≔ not (even n);
 
 // substraction
 
@@ -702,6 +709,7 @@ begin
   { assume h; apply h }
   { assume n h i; apply h; apply i;}
 end;
+
 
 opaque symbol letnS m n : π (istrue (m < n +1)) → π (istrue (m ≤ n)) ≔
 begin
@@ -1080,6 +1088,43 @@ begin
   have t:π (istrue (m1 - n1 ≤ m2 - n1)) { apply leq_sub2r m1 m2 n1 h };
   have u:π (istrue (m2 - n1 ≤ m2 - n2)) { apply leq_sub2l n2 n1 m2 i };
   apply @leq_trans (m1 - n1) (m2 - n1) (m2 - n2) t u;
+end;
+
+opaque symbol le_plus_exists n m : π (n ≤ m) → π (`∃ p, n + p = m) ≔
+begin
+  assume n m h;
+  refine ∨ₑ (∧ₑ₁ (leq_eqVlt n m) h) _ _
+  {
+    assume heq;
+    refine ∃ᵢ _0 _;
+    refine heq
+  }
+  {
+    assume hnltm;
+    refine ∃ᵢ (m - n) _;
+    refine subnKC n m h
+  };
+end;
+
+opaque symbol exists_le_plus n m : π (`∃ p, n + p = m) → π (n ≤ m) ≔
+begin
+  assume n m h;
+  refine ∃ₑ h _;
+  assume p h2;
+  remove h;
+  rewrite left h2;
+  refine leq_addr p n;
+end;
+
+opaque symbol leqsnm n m: π (istrue (n +1 ≤ m)) → π (istrue (n ≤ m))  ≔
+begin
+  assume n m h;
+  refine exists_le_plus n m _;
+  have g: π (`∃ p, ((n +1) + p) = m) { refine le_plus_exists (n +1) m h };
+  refine ∃ₑ g _;
+  assume p h2;
+  refine ∃ᵢ ((_0 +1) + p) _;
+  refine h2
 end;
 
 // max
@@ -1786,6 +1831,34 @@ end;
 builtin "nat_zero" ≔ _0;
 builtin "nat_succ" ≔ +1;
 
+// Euclidean division
+require open Stdlib.Prod;
+
+// This division is linear and tail-recursive. 
+// In divmod, y is the predecessor of the actual divisor, and u is y minus the real remainder
+
+symbol divmod (x y q u: ℕ) : τ (nat × nat);
+
+rule divmod _0 _ $q $u ↪ ($q ‚ $u)
+with divmod ($x +1) $y $q _0 ↪ divmod $x $y ($q +1) $y
+with divmod ($x +1) $y $q ($u +1) ↪ divmod $x $y $q $u;
+
+symbol / (x y: ℕ) : ℕ; notation / infix 15;
+rule $x / _0 ↪ _0
+with $x / ($y +1) ↪ (divmod $x $y _0 $y) ₁;
+
+symbol % (x y: ℕ) : ℕ; notation % infix 16;
+rule $x % _0 ↪ _0
+with $x % ($y +1) ↪ $y - ((divmod $x $y _0 $y) ₂);
+
+opaque symbol mod_lt [x n: ℕ]: π (_0 < n) → π (x % n < n) ≔
+begin
+admitted;
+
+opaque symbol modulo_lt [a b n: ℕ]: π (a < n) → π (b % n < n) ≔
+begin
+admitted;
+
 // shortcuts
 
 symbol _1 ≔ _0 +1;
@@ -1822,3 +1895,92 @@ builtin "10" ≔ _10;
 
 builtin "+" ≔ +;
 builtin "*" ≔ *;
+
+type 42;
+
+
+opaque symbol n_plus_n_eq_times_2 n: π (n * 2 = n + n) ≔
+begin
+induction
+{reflexivity}
+{assume n ih; simplify; rewrite left ih; reflexivity }
+end;
+
+// Bitwise operations
+// Prefer using the binary representation `BinNat` for improved efficiency whenever a corresponding operation is supported.
+
+symbol div2 : ℕ → ℕ;
+rule div2 _0 ↪ _0
+with div2 (_0 +1) ↪ _0
+with div2 (($x +1) +1) ↪ (div2 $x) +1;
+
+// nat_rec = fun P : nat -> Set => nat_rect P
+//      : forall P : nat -> Set, P 0 -> (forall n : nat, P n -> P (S n)) -> forall n : nat, P n
+
+// symbol nat_rec: Π (p: τ nat → Set), τ (p _0) → (Π n, τ (p n) → τ (p (n +1))) → Π n, τ (p n);
+
+// shift left
+// left-shifting an natural `x` with an natural `y` is equivalent to multiplying `x` with 2 raised to power `y`.
+symbol <<<: ℕ → ℕ → ℕ; notation <<< infix 30;
+rule $x <<< $y ↪ $x * (2 ^ $y);
+
+symbol <<: ℕ → ℕ ≔ λ x, x <<< 1 ; notation << postfix 30;
+
+assert ⊢ 21 <<< 1 ≡ 42;
+
+// shift right
+symbol >>>: ℕ → ℕ → ℕ; notation >>> infix 30;
+rule $x >>> $y ↪ $x / (2 ^ $y);
+
+symbol >>: ℕ → ℕ ≔ λ x, x >>> 1 ; notation >> postfix 30;
+
+assert ⊢ 21 >>> 2 ≡ 5;
+
+symbol bitwise: τ (bool ⤳ bool ⤳ bool) → ℕ → ℕ → ℕ → ℕ;
+rule bitwise $op _0 _ _ ↪ _0
+with bitwise $op ($n +1) $a $b ↪ (if ($op (odd $a) (odd $b)) 1 0) + 2 * (bitwise $op $n (div2 $a) (div2 $b));
+
+symbol && (a b: ℕ): ℕ ≔ bitwise (and) a a b; notation && infix 10;
+
+symbol ⎪⎪ (a b: ℕ): ℕ ≔ bitwise (or) (max a b) a b; notation ⎪⎪ infix 12;
+
+assert ⊢ 2 ⎪⎪ 8 ≡ 10;
+
+symbol diff (a b: ℕ): ℕ ≔ bitwise (λ b1, λ b2,  b1 and (not b2)) a a b;
+
+// Definition lxor a b := bitwise xorb (max a b) a b.
+symbol xor (a b: ℕ): ℕ ≔ bitwise (xor) (max a b) a b; notation xor infix 10;
+
+symbol testbit (a n: ℕ) : 𝔹;
+rule testbit $a 0 ↪ odd $a
+with testbit $a ($n +1) ↪ testbit (div2 $a) $n;
+
+symbol bitwise_size a b n : Π op,  π (a ≤ n) → π (b ≤ n) → π ((bitwise (op) n a b) ≤ n) ≔
+begin
+  assume a b;
+  induction
+  {
+    assume op h1 h2;
+    simplify;
+    apply ⊤ᵢ
+  }
+  {
+    assume n ih op h1 h2;
+    simplify;
+    apply ind_𝔹_eq (λ u, istrue ((if u 1 0 + (bitwise op n (div2 a) (div2 b) + bitwise op n (div2 a) (div2 b))) ≤ (n +1)))
+    (op (not (even a)) (not (even b)))
+    {
+      assume h;
+      rewrite h;
+      simplify if;
+      //set x ≔ (bitwise op n (div2 a) (div2 b));
+      admit
+    }
+    {
+      assume h;
+      rewrite h;
+      simplify;
+      admit
+    };
+  }
+end;
