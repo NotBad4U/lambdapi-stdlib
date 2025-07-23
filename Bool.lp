@@ -63,6 +63,13 @@ symbol not : 𝔹 → 𝔹;
 rule not true  ↪ false
 with not false ↪ true;
 
+opaque symbol negb_false_iff b : π (not b = false ⇔ b = true) ≔
+begin
+induction
+{simplify; apply ∧ᵢ { assume h; reflexivity } { assume h; reflexivity }}
+{simplify; apply ∧ᵢ { assume h; apply ⊥ₑ (true≠false h) } { assume h; apply ⊥ₑ (false≠true h) }}
+end;
+
 // or
 
 symbol or : 𝔹 → 𝔹 → 𝔹;
