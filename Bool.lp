@@ -104,6 +104,13 @@ begin
   { simplify; assume h0 h1; refine h1 }
 end;
 
+opaque symbol negb_false_iff b : π (not b = false ⇔ b = true) ≔
+begin
+induction
+{simplify; apply ∧ᵢ { assume h; reflexivity } { assume h; reflexivity }}
+{simplify; apply ∧ᵢ { assume h; apply ⊥ₑ (true≠false h) } { assume h; apply ⊥ₑ (false≠true h) }}
+end;
+
 // or
 
 symbol or : 𝔹 → 𝔹 → 𝔹;
@@ -161,21 +168,6 @@ begin
       assume h1; refine (λ x, x)
     }
    }
-end;
-
-
-opaque symbol ¬_istrue [p: 𝔹] : π(not p) → π(¬ p) ≔
-begin
-  induction
-  { assume contra h; apply ⊥ₑ contra }
-  { assume b hbot; apply hbot }
-end;
-
-opaque symbol istrue_not [p: 𝔹] : π(¬ p) → π(not p)  ≔
-begin
-  induction
-  { assume h; refine h _; apply ⊤ᵢ }
-  { assume h; apply ⊤ᵢ }
 end;
 
 opaque symbol ∨_istrue [p q : 𝔹] : π(p or q) → π(p ∨ q) ≔

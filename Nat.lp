@@ -94,11 +94,41 @@ inductive ℕ : TYPE ≔
 | _0 : ℕ
 | +1 : ℕ → ℕ; notation +1 postfix 100;
 
+// Induction principle for nats from n to n+2
+opaque symbol ind_ℕ2 : Π p: (ℕ → Prop), π (p _0) → π (p (_0 +1)) → (Π x0: ℕ, π (p x0) → π (p (x0 +1)) → π (p (x0 +1 +1))) → Π x: ℕ, π (p x) ≔
+begin
+  assume p h0 h1 ih x;
+  have enough: π (p x ∧ p (x +1)) → π (p x) { assume h; refine ∧ₑ₁ h };
+  refine enough _;
+  remove enough;
+  generalize x;
+  induction
+  { apply ∧ᵢ h0 h1 }
+  {
+    assume x ihx;
+    apply ∧ᵢ
+    { refine ∧ₑ₂ ihx }
+    { apply ih x (∧ₑ₁ ihx) (∧ₑ₂ ihx) }
+  }
+end;
+
+print ℕ;
+
+// Perform just a case analysis without induction hypothesis
+symbol rec_ℕ : Π p: (ℕ → Prop), π (p _0) → (Π x: ℕ, π (p (x +1))) → Π x: ℕ, π (p x) ≔
+begin
+  assume p h1 h2;
+  induction
+  {refine h1}
+  {assume x h3;apply h2}
+end;
+
 // set code for ℕ
 
 constant symbol nat : Set;
 
 rule τ nat ↪ ℕ;
+
 
 // non confusion of constructors
 
@@ -488,7 +518,6 @@ end;
 symbol * : ℕ → ℕ → ℕ; notation * infix left 30; // \times
 
 assert x y z ⊢ x + y * z ≡ x + (y * z);
-
 rule _0 * _  ↪ _0
 with ($x +1) * $y ↪ $y + $x * $y;
 
@@ -1851,13 +1880,25 @@ symbol % (x y: ℕ) : ℕ; notation % infix 16;
 rule $x % _0 ↪ _0
 with $x % ($y +1) ↪ $y - ((divmod $x $y _0 $y) ₂);
 
-opaque symbol mod_lt [x n: ℕ]: π (_0 < n) → π (x % n < n) ≔
+opaque symbol mod_lt (x n: ℕ): π (_0 < n) → π (x % n < n) ≔
 begin
 admitted;
 
-opaque symbol modulo_lt [a b n: ℕ]: π (a < n) → π (b % n < n) ≔
+opaque symbol modulo_lt [b a n: ℕ]: π (a < n) → π (b % n < n) ≔
 begin
-admitted;
+  assume b;
+  induction
+  {
+    assume n ha;
+    apply mod_lt b n ha;
+  }
+  {
+    assume a' iha' n ha;
+    apply iha' n;
+    apply @leq_trans (a' +1) ((a' +1) +1) n _ ha;
+    refine leqnSn (a' +1);
+  }
+end;
 
 // shortcuts
 
@@ -1914,23 +1955,76 @@ rule div2 _0 ↪ _0
 with div2 (_0 +1) ↪ _0
 with div2 (($x +1) +1) ↪ (div2 $x) +1;
 
-// nat_rec = fun P : nat -> Set => nat_rect P
-//      : forall P : nat -> Set, P 0 -> (forall n : nat, P n -> P (S n)) -> forall n : nat, P n
+opaque symbol div2_double x : π ((div2 (2 * x)) = x) ≔
+begin
+  induction
+  {reflexivity}
+  { assume x ih; simplify; apply feq (+1); apply ih }
+end;
 
-// symbol nat_rec: Π (p: τ nat → Set), τ (p _0) → (Π n, τ (p n) → τ (p (n +1))) → Π n, τ (p n);
+opaque symbol div2_succ_double n : π ( div2 ((2 * n) +1) = n) ≔
+begin induction {reflexivity} {
+  assume x ih; simplify; 
+  apply feq (+1) _;
+  rewrite left .[x in _ = x] ih;
+  reflexivity
+} end;
+
+opaque symbol le_div n : π (div2 (n) ≤ n) ≔
+begin
+  refine ind_ℕ2 (λ u, istrue (div2 u ≤ u)) _ _ _
+  {apply ⊤ᵢ }
+  {apply ⊤ᵢ }
+  {
+    assume x;
+    simplify;
+    assume ih ih2;
+    apply @leq_trans (div2 x) x (x +1)
+    {refine ih}
+    {
+      refine leqnSn x
+    }
+  }
+end;
+
+opaque symbol le_div2 n : π (div2 (n +1) ≤ n) ≔
+begin
+  induction
+  {apply ⊤ᵢ }
+  {
+    assume x ih;
+    simplify;
+    refine le_div x
+  }
+end;
+
+opaque symbol div2_decr a n : π (a ≤ n + 1) → π (div2 a ≤ n) ≔
+begin
+  induction
+  { assume n h; simplify; apply ⊤ᵢ }
+  {
+    assume a ih n h;
+    apply @leq_trans (div2 (a +1)) a n (le_div2 a) h
+  }
+end;
+
+symbol double x ≔ x + x;
 
 // shift left
 // left-shifting an natural `x` with an natural `y` is equivalent to multiplying `x` with 2 raised to power `y`.
 symbol <<<: ℕ → ℕ → ℕ; notation <<< infix 30;
-rule $x <<< $y ↪ $x * (2 ^ $y);
+rule $x <<< 0 ↪ $x
+with $x <<< ($n +1) ↪ double ($x <<< $n);
 
 symbol <<: ℕ → ℕ ≔ λ x, x <<< 1 ; notation << postfix 30;
 
 assert ⊢ 21 <<< 1 ≡ 42;
 
 // shift right
+// x >>> y ↪ x / (2 ^ y)
 symbol >>>: ℕ → ℕ → ℕ; notation >>> infix 30;
-rule $x >>> $y ↪ $x / (2 ^ $y);
+rule $x >>> 0 ↪ $x
+with $x >>> ($n +1) ↪ div2 ($x >>> $n);
 
 symbol >>: ℕ → ℕ ≔ λ x, x >>> 1 ; notation >> postfix 30;
 
@@ -1955,32 +2049,215 @@ symbol testbit (a n: ℕ) : 𝔹;
 rule testbit $a 0 ↪ odd $a
 with testbit $a ($n +1) ↪ testbit (div2 $a) $n;
 
-symbol bitwise_size a b n : Π op,  π (a ≤ n) → π (b ≤ n) → π ((bitwise (op) n a b) ≤ n) ≔
+symbol testbit_0_l : Π n, π (testbit 0 n = false) ≔
+begin induction { reflexivity } { assume x ih; simplify; apply ih } end;
+
+symbol Odd n ≔ (`∃ k, (2 * k + 1) = n);
+
+symbol Odd2 : Π n, π (Odd n) → π (Odd (n + 2));
+
+symbol odd_spec: Π n, π (Odd n) → π (odd n = true);
+
+symbol Even n ≔ (`∃ k, 2 * k = n);
+
+symbol even_spec: Π n, π (Even n) → π (even n = true);
+
+symbol odd_bitwise : Π op n a b, π (odd (bitwise op (n +1) a b) = op (odd a) (odd b)) ≔
 begin
-  assume a b;
-  induction
+  assume op n a b;
+  simplify bitwise;
+  have case: π (
+    (op (odd a) (odd b) = true)
+    ∨
+    (op (odd a) (odd b) = false)) { apply case_𝔹 };
+  apply ∨ₑ case
   {
-    assume op h1 h2;
+    assume hl; rewrite hl; simplify if;
+    rewrite addnC;
+    apply odd_spec ((_2 * bitwise op n (div2 a) (div2 b)) + _1);
     simplify;
-    apply ⊤ᵢ
+    apply ∃ᵢ (bitwise op n (div2 a) (div2 b));
+    reflexivity
   }
   {
-    assume n ih op h1 h2;
+    assume hr; rewrite hr; simplify if;
     simplify;
-    apply ind_𝔹_eq (λ u, istrue ((if u 1 0 + (bitwise op n (div2 a) (div2 b) + bitwise op n (div2 a) (div2 b))) ≤ (n +1)))
-    (op (not (even a)) (not (even b)))
+    refine ∧ₑ₂ (negb_false_iff (even (bitwise op n (div2 a) (div2 b) + bitwise op n (div2 a) (div2 b)))) _;
+    apply even_spec (bitwise op n (div2 a) (div2 b) + bitwise op n (div2 a) (div2 b));
+    simplify;
+    apply ∃ᵢ (bitwise op n (div2 a) (div2 b));
+    reflexivity
+  }
+end;
+
+symbol div2_bitwise : Π op n a b, π (div2 (bitwise op (n +1) a b) = bitwise op n (div2 a) (div2 b)) ≔
+begin
+  assume op n a b;
+  simplify bitwise;
+  have case: π (
+    (op (odd a) (odd b) = true)
+    ∨
+    (op (odd a) (odd b) = false)) { apply case_𝔹 };
+  apply ∨ₑ case
+  {
+    assume hl; rewrite hl; simplify if;
+    rewrite addnC;
+    apply div2_succ_double
+  }
+  {
+    assume hr; rewrite hr; simplify if;
+    rewrite add0n;
+    apply div2_double (bitwise op n (div2 a) (div2 b))
+  }
+end;
+
+symbol testbit_bitwise_1 : Π op, (Π b, π ((op false b) = false)) →
+  Π n m a b, π (a ≤ n) →
+  π (testbit (bitwise op n a b) m = op (testbit a m) (testbit b m))
+≔ begin
+  assume op Hop;
+  induction
+  {
+     assume m a b Ha;
+    rewrite ≤0 a Ha;
+    simplify;
+    rewrite testbit_0_l;
+    rewrite Hop ((testbit b m));
+    reflexivity
+  }
+  {
+    assume n IHn;
+    induction
     {
-      assume h;
-      rewrite h;
-      simplify if;
-      //set x ≔ (bitwise op n (div2 a) (div2 b));
-      admit
+      assume a b ha;
+      apply odd_bitwise op (n) a b
     }
     {
-      assume h;
-      rewrite h;
-      simplify;
-      admit
+      assume m Ihm a b ha;
+      simplify testbit;
+      rewrite div2_bitwise;
+      apply IHn m (div2 a) (div2 b) _;
+      refine  div2_decr a n ha
+    }
+  }
+end;
+
+symbol testbit_bitwise_2 : Π op, π ((op false false) = false) →
+  Π n m a b, π (a ≤ n) → π (b ≤ n) →
+  π (testbit (bitwise op n a b) m = op (testbit a m) (testbit b m))
+≔ begin
+  assume op Hop_spec;
+  induction
+  {
+     assume m a b Ha Hb;
+    rewrite ≤0 a Ha;
+    rewrite ≤0 b Hb;
+    simplify;
+    rewrite testbit_0_l;
+    symmetry;
+    apply Hop_spec
+  }
+  {
+    assume n IHn;
+    induction
+    {
+      assume a b ha hb;
+      apply odd_bitwise op (n) a b;
+    }
+    {
+      assume m Ihm a b ha hb;
+      simplify testbit;
+      rewrite div2_bitwise;
+      apply IHn m (div2 a) (div2 b) _ _
+      { refine  div2_decr a n ha }
+      { refine  div2_decr b n hb }
+    }
+  }
+end;
+
+symbol land_spec a b n :
+  π (testbit (a && b) n = (testbit a n and testbit b n)) ≔
+begin
+  assume a n b;
+  simplify;
+  refine testbit_bitwise_1 (and) _ a b a n (≤_refl a);
+  induction
+  {reflexivity}
+  {reflexivity}
+end;
+
+symbol ldiff_spec a b n :
+  π (testbit (diff a b) n = (testbit a n and not (testbit b n))) ≔
+begin
+  assume a n b;
+  simplify diff;
+  refine testbit_bitwise_1 (λ a b, a and not b) _ a b a n (≤_refl a);
+  induction
+  {reflexivity}
+  {reflexivity}
+end;
+
+symbol lor_spec a b n :
+  π (testbit (a ⎪⎪ b) n = (testbit a n or testbit b n)) ≔
+begin
+  assume a n b;
+  simplify;
+  refine  testbit_bitwise_2 (or) _ (max a n) b a n _ _
+  {reflexivity}
+  {refine leq_maxl a n }
+  {refine leq_maxr a n }
+end;
+
+symbol xor_spec a b n :
+  π (testbit (a xor b) n = (testbit a n Stdlib.Bool.xor testbit b n)) ≔
+begin
+ assume a n b;
+  simplify;
+  refine  testbit_bitwise_2 (Stdlib.Bool.xor) _ (max a n) b a n _ _
+  {reflexivity}
+  {refine leq_maxl a n }
+  {refine leq_maxr a n }
+end;
+
+opaque symbol shiftr_spec: Π a n m,  π (testbit (a >>> n) m = testbit a (m + n)) ≔
+begin
+  assume a;
+  induction
+  { reflexivity }
+  {
+    assume n ihn m;
+    have g: π ((m + (n +1)) = (m + 1) + n) {
+      simplify;  
+      reflexivity
     };
+    rewrite g;
+    rewrite left ihn (m + 1);
+    reflexivity
+  }
+end;
+
+opaque symbol shiftl_spec: Π a n m,  π (n ≤ m) → π (testbit (a <<< n) m = testbit a (m - n)) ≔
+begin
+assume a;
+  induction
+  { reflexivity }
+  {
+    assume n ih;
+    induction
+    {
+      assume contra;
+      apply ⊥ₑ contra
+    }
+    {
+      assume m ihm h;
+      remove ihm;
+      simplify;
+      rewrite left (ih m h);
+      simplify;
+      have g: π ((((a <<< n) + (a <<< n))) = (2 * (a <<< n))) {reflexivity};
+      rewrite g;
+      rewrite div2_double;
+      reflexivity
+    }
   }
 end;
