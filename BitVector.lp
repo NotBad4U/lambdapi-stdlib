@@ -23,8 +23,10 @@ apply FinMk (2 ^ m) (val bv1);
 admit
 end;
 
+private symbol bv0 : BitVec 4 ≔ FinMk (2 ^ 4) 2 ⊤ᵢ;
 private symbol bv1 : BitVec 4 ≔ FinMk (2 ^ 4) 5 ⊤ᵢ;
 private symbol bv2 : BitVec 4 ≔ FinMk (2 ^ 4) 15 ⊤ᵢ;
+private symbol bv7 : BitVec 4 ≔ FinMk (2 ^ 4) 7 ⊤ᵢ;
 private symbol bv3 : BitVec 4 ≔ FinMk (2 ^ 4) 13 ⊤ᵢ;
 
 // We inherit `Fin` implementations
@@ -41,17 +43,23 @@ assert ⊢ @to_nat 4 (bvadd (FinMk (2 ^ 4) 5 ⊤ᵢ) (FinMk (2 ^ 4) 15 ⊤ᵢ)) 
 
 //compute 
 
-symbol bvsub [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (sub (2 ^ n) x y);
+symbol bvsub [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (fin.sub (2 ^ n) x y);
 
-symbol bvmul [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (mul (2 ^ n) x y);
+symbol bvmul [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (fin.mul (2 ^ n) x y);
 
-symbol bvshiftl [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (shiftl (2 ^ n) x y);
+symbol bvshiftl [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (fin.shiftl (2 ^ n) x y);
 
-symbol bvshiftr [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (shiftr (2 ^ n) x y);
+symbol bvshiftr [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (fin.shiftr (2 ^ n) x y);
 
-symbol bvand [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (and (2 ^ n) x y);
+symbol bvand [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (fin.and (2 ^ n) x y);
 
-symbol bvor [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (or (2 ^ n) x y);
+symbol bvor [n: ℕ]: BitVec n → BitVec n → BitVec n ≔ λ x, λ y, (fin.or (2 ^ n) x y);
+
+compute bvor bv0 bv1;
+type bv7;
+compute bv7;
+
+// assert ⊢ bvor bv0 bv1  ≡ bv7;
 
 // Create a bitvector of size `n` fill with 0 
 symbol bv_fill_zero (n: ℕ): BitVec n ≔ begin
@@ -181,9 +189,6 @@ rule @zero_extend $n $k $bv ↪ @bvconcat $k $n (bv_fill_zero $k) $bv;
 assert ⊢ zero_extend 3 bv1 : BitVec ((bv_size bv1) + 3);
 
 symbol bveq [n : ℕ] : BitVec n → BitVec n → 𝔹 ≔ λ b1 b2,  (eqn (to_nat b1) (to_nat b2));
-
-compute bveq bv1 bv2;
-compute bveq bv1 bv1;
 
 
 symbol bvcomp [n : ℕ] : BitVec n → BitVec n → BitVec 1;
