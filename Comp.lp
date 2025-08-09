@@ -23,6 +23,8 @@ rule isEq Eq ↪ true
 with isEq Lt ↪ false
 with isEq Gt ↪ false;
 
+symbol isNEq b ≔ not (isEq b);
+
 symbol isLt : Comp → 𝔹;
 
 rule isLt Eq ↪ false

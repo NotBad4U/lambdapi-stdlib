@@ -7,7 +7,7 @@ require Stdlib.Bool;
 require open Stdlib.Set;
 require open Stdlib.List;
 require open Stdlib.Prod;
-require open Stdlib.Tactic;
+
 
 inductive prop: TYPE ≔
 |pTrue: prop
@@ -338,6 +338,8 @@ with propReify $ctx $x ↪
 symbol reify goal ≔ propReify □ goal; 
 
 symbol tauto_aux [goal] ≔ let res ≔ reify goal in provable_sound (res ₁) □ (res ₂);
+
+require open Stdlib.Tactic;
 
 symbol tauto ≔ #refine "(tauto_aux ⊤ᵢ ⊤ᵢ)";
 
