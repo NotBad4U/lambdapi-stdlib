@@ -90,6 +90,9 @@ builtin "try" ≔ #try;
 constant symbol #why3 : /*τ (option string) →*/ Tactic;
 builtin "why3" ≔ #why3;
 
+constant symbol #change [p] : π p → Tactic;
+builtin "change" ≔ #change;
+
 /*****************************************************************************/
 
 symbol nothing ≔ #try #fail;

@@ -1085,7 +1085,7 @@ end;
 opaque symbol mem_head [a] beq (x:τ a) l :
   π (beq x x = true) → π (∈ beq x (x ⸬ l)) ≔
 begin
-  assume a beq x l hrefl; simplify; rewrite hrefl; apply ⊤ᵢ;
+  assume a beq x l hrefl; rewrite hrefl; apply ⊤ᵢ;
 end;
 
 opaque symbol mem_tail [a] (beq: τ a → τ a → 𝔹) (n m: τ a) (l: 𝕃 a) : 

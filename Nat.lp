@@ -734,7 +734,6 @@ begin
   { assume n h i; apply h; apply i;}
 end;
 
-
 opaque symbol letnS m n : π (istrue (m < n +1)) → π (istrue (m ≤ n)) ≔
 begin
   assume m n h; apply h;
@@ -1156,6 +1155,13 @@ begin
   assume p h2;
   refine ∃ᵢ ((_0 +1) + p) _;
   refine h2
+end;
+
+opaque symbol ltsnm n m: π (istrue (n +1 < m)) → π (istrue (n < m))  ≔
+begin
+  simplify;
+  assume n m h;
+  refine leqsnm (n +1) m h
 end;
 
 // max
@@ -2260,7 +2266,6 @@ assume a;
       remove ihm;
       simplify;
       rewrite left (ih m h);
-      simplify;
       have g: π ((((a <<< n) + (a <<< n))) = (2 * (a <<< n))) {reflexivity};
       rewrite g;
       rewrite div2_double;
@@ -2268,3 +2273,14 @@ assume a;
     }
   }
 end;
+
+// GCD
+
+symbol mod (x y: ℕ) : ℕ; notation mod infix 22;
+rule $x mod _0 ↪ $x
+with $x mod ($y +1) ↪ $y - ((divmod $x $y _0 $y) ₂)
+;
+
+symbol gcd (a b: ℕ) : ℕ;
+rule gcd _0 $b ↪ $b
+with gcd ($a +1) $b ↪ gcd ($b mod ($a + 1)) ($a + 1);

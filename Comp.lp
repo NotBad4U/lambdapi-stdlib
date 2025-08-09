@@ -24,6 +24,8 @@ rule isEq Eq ↪ true
 with isEq Lt ↪ false
 with isEq Gt ↪ false;
 
+symbol isNEq b ≔ not (isEq b);
+
 symbol isLt : Comp → 𝔹;
 
 rule isLt Eq ↪ false
@@ -35,6 +37,10 @@ symbol isGt : Comp → 𝔹;
 rule isGt Eq ↪ false
 with isGt Lt ↪ false
 with isGt Gt ↪ true;
+
+symbol isLe (c: Comp) ≔ (isEq c) or (isLt c);
+
+symbol isGe (c: Comp) ≔ (isEq c) or (isGt c);
 
 // Discriminate constructors
 

@@ -500,7 +500,7 @@ symbol ≐_compat_add x y z : π ((x ≐ y) = (x + z ≐ y + z)) ≔
 begin
   assume x y z;
   rewrite ≐_sub; rewrite .[x in _ = x] ≐_sub;
-  simplify; rewrite distr_—_+; rewrite .[— y + — z] +_com;
+  rewrite distr_—_+; rewrite .[— y + — z] +_com;
   rewrite +_assoc; rewrite left +_assoc z (— z) (— y);
   rewrite -_same z; reflexivity;
 end;
@@ -562,7 +562,7 @@ end;
 symbol <_compat_add x y a : π (x < y ⇒ x + a < y + a) ≔
 begin
   assume x y a; simplify; assume H; rewrite ≐_sub;
-  simplify; rewrite +_assoc; rewrite .[y + a] +_com;
+  rewrite +_assoc; rewrite .[y + a] +_com;
   rewrite distr_—_+; rewrite left +_assoc a (— a) (— y);
   rewrite -_same; rewrite left +_assoc;
   simplify; rewrite left ≐_sub; refine H;
@@ -1083,3 +1083,84 @@ symbol ^ : ℤ → ℤ → ℤ; notation ^ infix 3;
 rule $x ^ Z0 ↪ 1
 with $x ^ (Zpos $p) ↪ power_pos $x $p
 with $x ^ (Zneg _) ↪ Z0;
+
+require open Stdlib.Prod;
+
+// Fixpoint pos_div_eucl (a:positive) (b:Z) : Z * Z :=
+//   match a with
+//     | xH => if leb 2 b then (0, 1) else (1, 0)
+//     | xO a' =>
+//       let (q, r) := pos_div_eucl a' b in
+//       let r' := 2 * r in
+//       if ltb r' b then (2 * q, r') else (2 * q + 1, r' - b)
+//     | xI a' =>
+//       let (q, r) := pos_div_eucl a' b in
+//       let r' := 2 * r + 1 in
+//       if ltb r' b then (2 * q, r') else (2 * q + 1, r' - b)
+//   end.
+
+
+symbol pos_div_eucl (a : ℙ) (b: ℤ) :  τ (int × int);
+rule pos_div_eucl H $b ↪ if (isLe (2 ≐ $b)) (0 ‚ 1) (1 ‚ 0)
+with pos_div_eucl (O $a) $b ↪
+  let rec : τ (int × int) ≔ (pos_div_eucl $a $b) in
+  let q : τ int ≔ (rec ₁) in
+  let r' : τ int ≔ 2 * (rec ₂) in
+    if (isLt (r' ≐ $b)) ((2 * q) ‚ r') ((2 * q + 1) ‚ (r' - $b)) //(2 * q ‚ r') (2 * q + 1 ‚ r' - $b) 
+with pos_div_eucl (I $a) $b ↪
+  let rec ≔ (pos_div_eucl $a $b) in
+  let q ≔ rec ₁ in
+  let r' ≔ 2 * (rec ₂) + 1 in
+    if (isLt (r' ≐ $b)) ((2 * q) ‚ r') ((2 * q + 1) ‚ (r' - $b))
+;
+
+
+// Definition div_eucl (a b:Z) : Z * Z :=
+//   match a, b with
+//     | 0, _ => (0, 0)
+//     | _, 0 => (0, a)
+//     | Zpos a', Zpos _ => pos_div_eucl a' b
+//     | Zneg a', Zpos _ =>
+//       let (q, r) := pos_div_eucl a' b in
+//         match r with
+//           | 0 => (- q, 0)
+//           | _ => (- (q + 1), b - r)
+//         end
+//     | Zneg a', Zneg b' =>
+//       let (q, r) := pos_div_eucl a' (Zpos b') in (q, - r)
+//     | Zpos a', Zneg b' =>
+//       let (q, r) := pos_div_eucl a' (Zpos b') in
+//         match r with
+//           | 0 => (- q, 0)
+//           | _ => (- (q + 1), b + r)
+//         end
+//   end.
+symbol div_eucl (a b: ℤ): τ (int × int);
+rule div_eucl Z0 _ ↪ (0 ‚ 0)
+with div_eucl $a Z0 ↪ (0 ‚ $a)
+with div_eucl (Zpos $a) (Zpos $b) ↪ pos_div_eucl $a (Zpos $b)
+with div_eucl (Zneg $a) (Zpos $b) ↪
+  let res ≔ (pos_div_eucl $a (Zpos $b)) in
+  let q ≔ (res ₁) in
+  let r ≔ (res ₂) in
+    if (isEq  (0 ≐ r)) ((— q) ‚ 0) ((— (q + 1)) ‚ ((Zpos $b) - r))
+with div_eucl (Zneg $a) (Zneg $b) ↪
+  let res ≔ (pos_div_eucl $a (Zpos $b)) in
+    let q ≔ (res ₁) in
+    let r ≔ (res ₂) in
+      (q ‚ (— r))
+with div_eucl (Zpos $a) (Zneg $b) ↪
+  let res ≔ (pos_div_eucl $a (Zpos $b)) in
+  let q ≔ (res ₁) in
+  let r ≔ (res ₂) in
+    if (isEq  (0 ≐ r)) ((— q) ‚ 0) ((— (q + 1)) ‚ ((Zpos $b) + r))
+;
+
+symbol div (a b: ℤ): τ int ≔ (div_eucl a b) ₁;
+
+symbol modulo (a b: ℤ): τ int ≔ (div_eucl a b) ₂;
+
+assert ⊢ div_eucl 533 4 ≡ 133 ‚ 1;
+assert ⊢ div_eucl 243 18 ≡ 13 ‚ 9;
+assert ⊢ div_eucl 0 4 ≡ 0 ‚ 0;
+assert ⊢ div_eucl 4 0 ≡ 0 ‚ 4;
