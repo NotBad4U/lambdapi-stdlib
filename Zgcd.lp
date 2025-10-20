@@ -74,17 +74,11 @@ rule sub $a $b ↪ sub' (sub_mask $a $b);
 
 // https://coq.inria.fr/doc/V8.18.0/aclia/Coq.PArith.BinPosDef.html#Pos.gcdn
 symbol Stein_gcd (a b: ℙ): ℙ;
-rule Stein_gcd H _ ↪ H
-with Stein_gcd _ H ↪ H
-// with Stein_gcd H H ↪ H
-// with Stein_gcd (O _) H ↪ H
-// with Stein_gcd (I _) H ↪ H
-with Stein_gcd (O $a) (O $b) ↪ O (Stein_gcd $a $b)
-with Stein_gcd (I $a) (O $b) ↪ (Stein_gcd (I $a) $b)
-// with Stein_gcd H (O $b) ↪ (Stein_gcd H $b)
-with Stein_gcd (O $a) (O $b) ↪ (Stein_gcd $a (O $b))
+rule Stein_gcd H _ ↪ H    // 1 / gcd(1, b) = 1
+with Stein_gcd _ H ↪ H    // gcd(a, 1) = 1
+with Stein_gcd (O $a) (O $b) ↪ O (Stein_gcd $a $b) // gcd(2a, 2b) = 2 * gcd(a,b) bc 2 is a common divisor
+with Stein_gcd (I $a) (O $b) ↪ (Stein_gcd $a $b) // u is odd then 2 is not a common division
 with Stein_gcd (O $a) (I $b) ↪ (Stein_gcd $a (I $b))
-// with Stein_gcd (O $a) H ↪ (Stein_gcd $a H)
 with Stein_gcd (I $a) (I $b) ↪
     let res ≔ (compare $a $b) in
         if (isEq res) 
@@ -95,6 +89,42 @@ with Stein_gcd (I $a) (I $b) ↪
 ;
 
 compute val (Stein_gcd  (O (O (O (I (I (O (O H))))))) (O (O (I H))));
+
+compute val (O (O (O (I (I (O (O H)))))));
+compute val ((O (O (I H))));
+
+// This function reduces the number `a` by the greatest
+// common divisor of `a` and `b`, i.e.
+//
+//        ReduceA a b  =  a / gcd(a,b).
+//
+// It follows the control flow of Stein’s binary gcd
+// algorithm, ensuring that the quotient is computed
+// in lockstep with the gcd without explicitly dividing.
+symbol red_by_Stein (a b: ℙ): ℙ;
+rule red_by_Stein H _ ↪ H // 1 / gcd(1, b) = 1
+with red_by_Stein $a H ↪ $a // gcd(a, 1) = 1 so return result = a
+with red_by_Stein (O $a) (O $b) ↪ red_by_Stein $a $b // Both even, gcd(2a , 2b)= 2 * gcd (a, b) ⇒ (2 * a)/(2 * g) = a/g
+
+with red_by_Stein (O $a) (I $b) ↪ O (red_by_Stein $a (I $b)) // a even, b odd: gcd(2a,odd)=g ⇒ (2a)/g = 2·(a/g) */
+
+/* a odd, b even: gcd(odd,2b)=g ⇒ a/g unchanged; just shrink b */
+with red_by_Stein (I $a) (O $b) ↪ red_by_Stein (I $a) $b
+
+/* both odd: compare the tails (since I $a = 2a+1) */
+with red_by_Stein (I $a) (I $b) ↪
+  let res ≔ (compare $a $b) in
+    if (isEq res)
+      H                                       // a == b ⇒ gcd = I a ⇒ (I a)/(I a) = 1
+      (if (isLt res)
+         (red_by_Stein (I $a) (sub (I $b) (I $a)))   // gcd(I a, I b) = gcd(I b − I a, I a)
+         (red_by_Stein (I $a) (sub (I $a) (I $b))))  // symmetric case
+;
+
+
+compute val (red_by_Stein  (O (O (O (I (I (O (O H))))))) (O (O (I H))));
+
+
 
 symbol abs: ℤ → ℤ;
 rule abs Z0 ↪ Z0

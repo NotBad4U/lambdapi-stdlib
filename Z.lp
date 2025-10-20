@@ -52,6 +52,11 @@ begin
   assume x y h; refine ind_eq h (λ n, istrue(isZneg n)) ⊤ᵢ
 end;
 
+symbol sign : ℤ → ℤ;
+rule sign Z0 ↪ (Zpos H)
+with sign (Zpos _) ↪ (Zpos H)
+with sign (Zneg _) ↪ (Zneg H);
+
 // Unary opposite
 
 symbol — : ℤ → ℤ;
@@ -349,6 +354,19 @@ begin
             rewrite add_com; reflexivity }
           // case Zneg - Zneg - Zneg
           { assume z; simplify; rewrite add_assoc; reflexivity } } }
+end;
+
+symbol =_add_compat x y c : π (x = y) →  π (x + c = y + c) ≔
+begin assume x y c h; rewrite h; reflexivity  end;
+
+opaque symbol cancel_sub a b: π ((a - b = Z0) ⇒ a = b) ≔
+begin
+  assume a b h;
+  have g: π ((a - b) + b = b) { simplify; refine =_add_compat (a - b) Z0 b h };
+  have g2: π (a + (b - b) = b) { simplify; rewrite +_com b (— b); rewrite left +_assoc; refine g };
+  change π ((a + Z0) = b);
+  rewrite left -_same b;
+  refine g2
 end;
 
 // Comparison of integers
@@ -706,8 +724,6 @@ begin
   assume x y Heq; rewrite Heq; refine ≥_refl y
 end;
 
-
-
 // Antisymmetry
 
 opaque symbol ≤_antisym x y : π (x ≤ y ⇒ y ≤ x ⇒ x = y) ≔
@@ -845,12 +861,98 @@ begin
   }
 end;
 
+opaque symbol mul_distr_sub_neg_l a (x y: ℙ) : π ((Zneg a * sub x y) = sub (mul a y) (mul a x)) ≔
+begin
+admitted;
+
+opaque symbol mul_distr_sub_pos_l a (x y: ℙ) : π ((Zpos a * sub x y) = sub (mul a x) (mul a y)) ≔
+begin
+admitted;
+
+opaque symbol *_distr_+ z x y  : π (z * (x + y) = (z * x) + (z * y)) ≔
+begin
+  induction
+  { assume x y; reflexivity }
+  {
+    assume z;
+    induction //x
+    { reflexivity; }
+    {
+      assume x;
+      induction // y
+      {reflexivity}
+      { assume y; simplify; rewrite mul_com; rewrite mul_distr_r; rewrite mul_com x z; rewrite mul_com y z; reflexivity }
+      { assume y; simplify; rewrite mul_distr_sub_pos_l; reflexivity }
+    }
+    {
+       assume x;
+       induction // y
+      {reflexivity}
+      { assume y; simplify; rewrite mul_distr_sub_pos_l; reflexivity }
+      { assume y; simplify; apply feq (Zneg); rewrite mul_distr_l; reflexivity }
+    }
+  }
+  {
+    assume z;
+    induction // x
+    { assume x; reflexivity }
+    {
+      assume x;
+      induction // y
+      { reflexivity }
+      { assume y; simplify; apply feq (Zneg); rewrite mul_distr_l; reflexivity }
+      { assume y; simplify; rewrite mul_distr_sub_neg_l; reflexivity }
+    }
+    {
+      assume x;
+      induction // y
+      { reflexivity }
+      { assume y;  simplify; rewrite mul_distr_sub_neg_l; reflexivity }
+      { assume y; simplify; apply feq (Zpos); rewrite mul_distr_l; reflexivity }
+    }
+  }
+end;
+
+symbol neg_mul_l a b : π (— (a * b) = (— a) * b) ≔
+begin
+  induction
+  {reflexivity}
+  { assume a; induction { reflexivity } { reflexivity } { reflexivity } }
+  { assume a; induction { reflexivity } { reflexivity } { reflexivity } }
+end;
+
+symbol neg_mul_r a b : π (— (a * b) = a * — b) ≔
+begin
+  induction
+  {reflexivity}
+  { assume a; induction { reflexivity } { reflexivity } { reflexivity } }
+  { assume a; induction { reflexivity } { reflexivity } { reflexivity } }
+end;
+
 //TODO:
 opaque symbol *_reg_r x y k : π (x * k = y * k ⇒ x = y) ≔
 begin
   assume x y k;
   admit 
 end;
+
+symbol lt_ind: Π (A : ℤ → Prop), Π (n : ℤ),
+(π (A (n + (Zpos H))) → π (`∀ m : ℤ, n < m ⇒ A m ⇒ A (m + (Zpos H))))
+→ Π (m : ℤ), π (n < m)  → π (A m);
+
+opaque symbol mul_lt_mono_pos_l p : π (Z0 < p) → Π n m, π (n < m ⇔ n * p < m * p) ≔
+begin
+  assume p h;
+  admit
+end;
+
+// opaque symbol mult_gt_compat_eq (c a b: ℤ) : π (c > Z0) →  π (a > b) →  π ((c * a) > (c * b)) ≔
+// begin
+//   induction
+//   { simplify >; simplify rule off; assume a b contra h; refine contra; }
+//   { assume c a b hc hab; simplify;  }
+//   {}
+// end;
 
 // shortcuts
 
@@ -1053,6 +1155,7 @@ opaque symbol >_strengthen t s: π (t > s ⇒ t ≥ (s + 1)) ≔
 begin
   assume t s H;
   have g: π (s < t) { refine  (∧ₑ₂ (@<_> s t)) H;  };
+  type ≤_≥;
   // remove H;
   // refine (∧ₑ₂ (≤_≥ t (s + 1))) _;
   // have s≤t: π (s ≤ t) { refine <_to_≤ s t g };
@@ -1099,8 +1202,6 @@ symbol ^ : ℤ → ℤ → ℤ; notation ^ infix 3;
 rule $x ^ Z0 ↪ 1
 with $x ^ (Zpos $p) ↪ power_pos $x $p
 with $x ^ (Zneg _) ↪ Z0;
-
-require open Stdlib.Prod;
 
 // Fixpoint pos_div_eucl (a:positive) (b:Z) : Z * Z :=
 //   match a with
@@ -1180,3 +1281,16 @@ assert ⊢ div_eucl 533 4 ≡ 133 ‚ 1;
 assert ⊢ div_eucl 243 18 ≡ 13 ‚ 9;
 assert ⊢ div_eucl 0 4 ≡ 0 ‚ 0;
 assert ⊢ div_eucl 4 0 ≡ 0 ‚ 4;
+
+require open Stdlib.Nat;
+
+// Conversion from ℤ to nat
+// Negative integers are mapped to 0
+symbol to_nat (z: ℤ) : τ nat;
+rule to_nat (Z0) ↪ _0
+with to_nat (Zpos $p) ↪ val $p
+with to_nat (Zneg _) ↪ _0;
+
+assert ⊢ to_nat 0 ≡ Stdlib.Nat._0;
+assert ⊢ to_nat (— _9) ≡ Stdlib.Nat._0;
+assert ⊢ to_nat _9 ≡ Stdlib.Nat._9;
