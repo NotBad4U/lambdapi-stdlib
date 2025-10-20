@@ -43,18 +43,18 @@ symbol eq_Σ [a: Set] (p: τ a → Prop) (x y: Σ p) (h1: π (x s₁ = y s₁)) 
 
 require Stdlib.Impred;
 
-symbol ⇒d : Π (x: Prop), (π x → Prop) → Prop; notation ⇒d infix 10;
-rule π ($x ⇒d $y) ↪ Π (z: π $x), π ($y z);
+// symbol ⇒d : Π (x: Prop), (π x → Prop) → Prop; notation ⇒d infix 10;
+// rule π ($x ⇒d $y) ↪ Π (z: π $x), π ($y z);
 
-symbol o : Set;
+// symbol o : Set;
 
-rule τ o ↪ Prop;
+// rule τ o ↪ Prop;
 
-symbol eq_Σ_curried [a: Set] (p: τ a → Prop) (u1 v1: τ a) (u2: π (p u1)) (v2: π (p v1))
-    (h: π (u1 = v1)) (h2: π (ind_eq h (λ u, (p u = p v1)) (eq_refl (p v1)))) : π ((@exist a p u1 u2) = (@exist a p v1 v2)) ≔
-begin
+// symbol eq_Σ_curried [a: Set] (p: τ a → Prop) (u1 v1: τ a) (u2: π (p u1)) (v2: π (p v1))
+//     (h: π (u1 = v1)) (h2: π (ind_eq h (λ u, (p u = p v1)) (eq_refl (p v1)))) : π ((@exist a p u1 u2) = (@exist a p v1 v2)) ≔
+// begin
 
-end;
+// end;
 
 
 

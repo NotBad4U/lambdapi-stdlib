@@ -289,7 +289,7 @@ with nat_to_int ($x +1) ↪ Zpos (of_succ_nat ($x +1));
 
 symbol to_int [n: ℕ] : BitVec n → ℤ;
 
-// symbol last_bit [n: ℕ] : BitVec n → ℕ;
+// symbol last_bit [n: ℕ] : BitVec n → ℕf;
 // rule @last_bit $n $b ↪ (@bitof $n ($n - 1) $b);
  
 // rule @to_int $n $bv ↪ let m ≔ nat_to_int (@to_nat $n $bv) in

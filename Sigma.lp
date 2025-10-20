@@ -64,10 +64,10 @@ rule τ (prf $p) ↪ π $p;
 // Lemma eq_exist_curried {A : Type} {P : A -> Prop} {u1 v1 : A} {u2 : P u1} {v2 : P v1}
 //              (p : u1 = v1) (q : rew p in u2 = v2) : exist P u1 u2 = exist P v1 v2.
 
-symbol eq_Σ_curried [a: Set] (p: τ a → Prop) (u1 v1: τ a) (u2: τ (prf (p u1))) (v2: τ (prf (p v1)))
-    (h: π (u1 = v1)) (h2: π (ind_eq h p v2 = u2)) : π (@exist a p u1 u2 = @exist a p v1 v2) ≔
-begin
-    assume a P u1 v1 u2 v2 heq_u1v1 heq_u2v2;
+// symbol eq_Σ_curried [a: Set] (p: τ a → Prop) (u1 v1: τ a) (u2: τ (prf (p u1))) (v2: τ (prf (p v1)))
+//     (h: π (u1 = v1)) (h2: π (ind_eq h p v2 = u2)) : π (@exist a p u1 u2 = @exist a p v1 v2) ≔
+// begin
+//     assume a P u1 v1 u2 v2 heq_u1v1 heq_u2v2;
     
-end;
+// end;
 

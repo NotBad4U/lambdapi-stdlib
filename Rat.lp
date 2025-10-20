@@ -1,7 +1,6 @@
 require open Stdlib.Prop Stdlib.Eq Stdlib.Z Stdlib.Prod Stdlib.Zgcd;
 
 
-symbol rat: Set;
 
 // Decidable predicate gcd |a| |b| = 1
 symbol coprime (a b: τ int): 𝔹 ≔  isEq ((Z_gcd (abs a) (abs b)) ≐ 1);
@@ -10,7 +9,13 @@ symbol coprime (a b: τ int): 𝔹 ≔  isEq ((Z_gcd (abs a) (abs b)) ≐ 1);
 // the denominator is positive and the numerator and denominator are coprime.
 // The denominator of the rational number is greater than zero.
 // The numerator and denominator are coprime: it is in "reduced form".
-symbol Rat : Π (a b: τ int), π (isLt (0 ≐ b) and coprime a b) → τ rat;
+// symbol Rat : Π (a b: τ int), π (isLt (0 ≐ b) and coprime a b) → τ rat;
+inductive TRat : TYPE ≔
+| Rat : Π (a b: τ int), π (isLt (0 ≐ b) and coprime a b) → TRat;
+
+symbol rat: Set;
+
+rule τ rat ↪ TRat;
 
 symbol num (a: τ rat) : τ int;
 rule num  (Rat $a _ _) ↪ $a;
@@ -18,10 +23,10 @@ rule num  (Rat $a _ _) ↪ $a;
 symbol den (a: τ rat) : τ int;
 rule den (Rat _ $b _ ) ↪ $b;
 
+symbol 1⫽1 : τ rat ≔ Rat 1 1 ⊤ᵢ;
+
 symbol valq : τ rat → τ (int × int);
 rule valq (Rat $n $d _) ↪ ($n ‚ $d);
-
-symbol 1⫽1 : τ rat ≔ Rat 1 1 ⊤ᵢ;
 
 symbol bool_to_Z : 𝔹 → ℤ;
 rule bool_to_Z true ↪ 1
@@ -111,6 +116,7 @@ assert ⊢ fracq 98 42 ≡ Rat 7 3 (fracq_subproof (98 ‚ 42));
 opaque symbol valqK x : π ((fracq ((valq x) ₁) ((valq x) ₂)) = x) ≔
 begin admitted;
 
+
 opaque symbol coprimen1 n : π (coprime n 1) ≔
 begin admitted;
 
@@ -120,6 +126,19 @@ opaque symbol coprime0n n : π (coprime 0 n) ≔
 begin admitted;
 
 symbol 0⫽1 : τ rat ≔ Rat 0 1 ⊤ᵢ;
+
+opaque symbol ratz_def : π (Rat 0 1 ⊤ᵢ = 0⫽1) ≔
+begin simplify; reflexivity end;
+
+opaque symbol val_fracq x : π (valq (fracq (x ₁) (x ₂)) = fracq_subdef x) ≔
+begin
+admitted;
+
+opaque symbol frac_0_num d: π (fracq 0 d = 0⫽1) ≔
+begin admitted;
+
+opaque symbol frac_0_den d: π (fracq d 0 = 0⫽1) ≔
+begin admitted;
 
 opaque symbol coprime_num_den n : π (coprime (num n) (den n)) ≔
 begin admitted;
@@ -137,7 +156,7 @@ opaque symbol q+_com x y: π (x q+ y = y q+ x) ≔
 begin
 admitted;
 
-opaque symbol q+_trans x y z: π (x q+ y q+ z = x q+ (y q+ z)) ≔
+opaque symbol q+_assoc x y z: π (x q+ y q+ z = x q+ (y q+ z)) ≔
 begin
 admitted;
 
@@ -160,7 +179,7 @@ opaque symbol q*_com x y: π (x q* y = y q* x) ≔
 begin
 admitted;
 
-opaque symbol q*_trans x y z: π (x q* y q* z = x q* (y q* z)) ≔
+opaque symbol q*_assoc x y z: π (x q* y q* z = x q* (y q* z)) ≔
 begin
 admitted;
 
@@ -180,7 +199,7 @@ opaque symbol q*_neutral_l x: π (1⫽1 q* x = x) ≔
 begin
 admitted;
 
-opaque symbol distrq*q+ x y z : π(x q* (y q+ z) = x q* y q+ x q* z) ≔
+opaque symbol distrq*q+ x y z : π(x q* (y q+ z) = (x q* y) q+ (x q* z)) ≔
 begin
 admitted;
 
@@ -206,3 +225,5 @@ rule (Rat $n $d _) ⁻¹ ↪ fracq $d $n;
 opaque symbol qinvinv_eq_id x : π ((x ⁻¹) ⁻¹ = x) ≔
 begin
 admitted;
+
+symbol q≐: τ rat → τ rat → Comp ≔ λ x, λ y, ((num x) * (den y)) ≐ ((num y) *  (den x)); notation q≐ infix 12;

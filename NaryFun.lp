@@ -87,9 +87,6 @@ symbol mapₙ [a b] n [dom: Sets n]: (τ a → τ b) → Arrow dom a → Arrow d
 rule mapₙ 0 $f $v ↪ $f $v
 with @mapₙ $a $b ($n +1) ($t × $ts) $op $f ↪ λ (x: τ $t), @mapₙ $a $b $n $ts $op ($f x);
 
-type (Stdlib.Prod.×);
-
-
 symbol ∩ [a b: Set] [n] [dom: Sets n] : Arrow dom a → Arrow dom b → Arrow dom (a Stdlib.Prod.× b)
   ≔ lift2 n (λ a b, a ‚ b);
 
@@ -99,7 +96,3 @@ symbol ∪ [a b: Set] [n] [dom: Sets n] : Arrow dom a → Arrow dom b → Arrow 
   ≔ lift2 n (λ a b, a ‚ b);
 
 notation ∪ infix 15;
-
-print ∀;
-print ∃;
-print =;
