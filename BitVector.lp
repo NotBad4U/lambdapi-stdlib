@@ -124,8 +124,6 @@ assert ⊢ @bitof 4 3 (FinMk (2 ^ 4) 13 ⊤ᵢ) ≡ 1;
 
 assert ⊢ (FinMk 2 1 ⊤ᵢ) : BitVec 1;
 
-coerce_rule coerce 𝔹 ℕ $x ↪ if $x 1 0;
-
 symbol list_bool_to_nat: 𝕃 bool → τ nat;
 rule list_bool_to_nat (true ⸬ $xs) ↪ (list_bool_to_nat $xs) * 2 + 1
 with list_bool_to_nat (false ⸬ $xs) ↪ (list_bool_to_nat $xs) * 2
@@ -227,7 +225,7 @@ symbol bvuge [n]: BitVec n → BitVec n → Prop ≔ λ b1 b2, istrue((to_nat b1
 symbol bvule [n]: BitVec n → BitVec n → Prop ≔ λ b1 b2, istrue((to_nat b1) ≤ (to_nat b2));
 
 
-// coerce_rule coerce 𝔹 ℕ $x ↪ if $x 1 0;
+coerce_rule coerce 𝔹 ℕ $x ↪ @if nat $x 1 0;
 
 symbol nat_to_bool : ℕ → 𝔹;
 rule  nat_to_bool 0 ↪ false
