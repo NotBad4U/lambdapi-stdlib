@@ -720,6 +720,19 @@ begin
    { reflexivity; refine e }
 end;
 
+symbol ≤_total x y : π (x ≤ y ∨ y ≤ x) ≔
+begin
+  assume x y;
+  have e : π (¬ (istrue(isGt (x ≐ y))) ∨ ¬ (istrue(isGt (y ≐ x)))) 
+  { rewrite ≐_com } ;
+    refine ind_Comp (λ c, ((y ≐ x) = c) ⇒ ¬ (istrue(isGt (opp c))) ∨ ¬ (istrue(isGt c))) _ _ _ (y ≐ x) _
+   { assume H; simplify; apply ∨ᵢ₁; refine (λ x, x) }
+   { assume H; simplify; apply ∨ᵢ₂; refine (λ x, x) }
+   { assume H; simplify; apply ∨ᵢ₁; refine (λ x, x) }
+   { rewrite ≐_com; reflexivity };
+   refine e
+end;
+
 // Transitivity theorems
 
 symbol ≤_trans x y z : π (x ≤ y ⇒ y ≤ z ⇒ x ≤ z) ≔
