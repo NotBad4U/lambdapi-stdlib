@@ -1275,6 +1275,10 @@ rule to_nat (Z0) ↪ _0
 with to_nat (Zpos $p) ↪ val $p
 with to_nat (Zneg _) ↪ _0;
 
+symbol to_int (n: τ nat) : ℤ;
+rule to_int _0 ↪ Z0
+with to_int ($n +1) ↪ Zpos (of_succ_nat $n);
+
 assert ⊢ to_nat 0 ≡ Stdlib.Nat._0;
 assert ⊢ to_nat (— _9) ≡ Stdlib.Nat._0;
 assert ⊢ to_nat _9 ≡ Stdlib.Nat._9;

@@ -88,11 +88,6 @@ with Stein_gcd (I $a) (I $b) ↪
                 (Stein_gcd (sub $a $b) (I $b))) // Gt
 ;
 
-compute val (Stein_gcd  (O (O (O (I (I (O (O H))))))) (O (O (I H))));
-
-compute val (O (O (O (I (I (O (O H)))))));
-compute val ((O (O (I H))));
-
 // This function reduces the number `a` by the greatest
 // common divisor of `a` and `b`, i.e.
 //
@@ -106,7 +101,7 @@ rule red_by_Stein H _ ↪ H // 1 / gcd(1, b) = 1
 with red_by_Stein $a H ↪ $a // gcd(a, 1) = 1 so return result = a
 with red_by_Stein (O $a) (O $b) ↪ red_by_Stein $a $b // Both even, gcd(2a , 2b)= 2 * gcd (a, b) ⇒ (2 * a)/(2 * g) = a/g
 
-with red_by_Stein (O $a) (I $b) ↪ O (red_by_Stein $a (I $b)) // a even, b odd: gcd(2a,odd)=g ⇒ (2a)/g = 2·(a/g) */
+with red_by_Stein (O $a) (I $b) ↪ O (red_by_Stein $a (I $b)) // a even, b odd: gcd(2a,odd)=g ⇒ (2a)/g = 2·(a/g)
 
 /* a odd, b even: gcd(odd,2b)=g ⇒ a/g unchanged; just shrink b */
 with red_by_Stein (I $a) (O $b) ↪ red_by_Stein (I $a) $b
@@ -121,142 +116,18 @@ with red_by_Stein (I $a) (I $b) ↪
          (red_by_Stein (I $a) (sub (I $a) (I $b))))  // symmetric case
 ;
 
-
-compute val (red_by_Stein  (O (O (O (I (I (O (O H))))))) (O (O (I H))));
-
-
-
 symbol abs: ℤ → ℤ;
 rule abs Z0 ↪ Z0
 with abs (Zpos $x) ↪ Zpos $x
 with abs (Zneg $x) ↪ Zpos $x
 ;
 
-//  Greatest Common Divisor 
-symbol Z_gcd: ℤ → ℤ → ℤ;
-rule Z_gcd Z0 $b ↪ abs $b
-with Z_gcd $a Z0 ↪ abs $a
-with Z_gcd (Zpos $a) (Zpos $b) ↪ Zpos (Stein_gcd $a $b)
-with Z_gcd (Zpos $a) (Zneg $b) ↪ Zpos (Stein_gcd $a $b)
-with Z_gcd (Zneg $a) (Zpos $b) ↪ Zpos (Stein_gcd $a $b)
-with Z_gcd (Zneg $a) (Zneg $b) ↪ Zpos (Stein_gcd $a $b)
-;
-
-
-// Qc : A canonical representation of rational numbers. based on the setoid representation Q.
-
-// (** A generalized gcd, also computing division of a and b by gcd. *)
-
-// Fixpoint ggcdn (n : nat) (a b : positive) : (positive*(positive*positive)) :=
-//   match n with
-//     | O => (1,(a,b))
-//     | S n =>
-//       match a,b with
-//         | 1, _ => (1,(1,b))
-//         | _, 1 => (1,(a,1))
-//         | a~0, b~0 =>
-//            let (g,p) := ggcdn n a b in
-//            (g~0,p)
-//         | _, b~0 =>
-//            let '(g,(aa,bb)) := ggcdn n a b in
-//            (g,(aa, bb~0))
-//         | a~0, _ =>
-//            let '(g,(aa,bb)) := ggcdn n a b in
-//            (g,(aa~0, bb))
-//         | a'~1, b'~1 =>
-//            match a' ?= b' with
-//              | Eq => (a,(1,1))
-//              | Lt =>
-//                 let '(g,(ba,aa)) := ggcdn n (b'-a') a in
-//                 (g,(aa, aa + ba~0))
-//              | Gt =>
-//                 let '(g,(ab,bb)) := ggcdn n (a'-b') b in
-//                 (g,(bb + ab~0, bb))
-//            end
-//       end
-//   end.
-sequential symbol pos_ggcd (a b: ℙ): τ (pos × (pos × pos));
-rule pos_ggcd H $b ↪ (H ‚ (H ‚ $b))
-with pos_ggcd $a H ↪ (H ‚ ($a ‚ H))
-with pos_ggcd (O $a) (O $b) ↪ let r ≔ pos_ggcd $a $b in (O (r ₁) ‚ r ₂)
-with pos_ggcd $a (O $b) ↪ let r ≔ pos_ggcd $a $b in ((r ₁) ‚ (r ₂ ₁ ‚ O ((r ₂) ₂)))
-with pos_ggcd (O $a) $b ↪ let r ≔ pos_ggcd $a $b in ((r ₁) ‚ (O (r ₂ ₁) ‚ ((r ₂) ₂)))
-with pos_ggcd (I $a) (I $b) ↪ 
-  let res ≔ (compare $a $b) in
-  if (isEq res) 
-      ((I $a) ‚ (H ‚ H))  // Eq
-      (if (isLt res)
-        (let r ≔ pos_ggcd (sub $b $a) (I $a) in
-          let ba ≔  ((r ₂) ₁) in
-          let aa ≔  ((r ₂) ₂) in
-            r ₁ ‚ ( aa ‚ (add aa (O ba)))
-        ) // Lt
-        (
-          let r ≔ pos_ggcd (sub $a $b) (I $b) in
-          let ab ≔  ((r ₂) ₁) in
-          let bb ≔  ((r ₂) ₂) in
-            r ₁ ‚ ((add bb (O ab)) ‚ bb)
-        )
-      ) // Gt
-;
-
-compute (pos_ggcd (O (O (O (I (I (O (O H))))))) (O (O (I H))));
-// Definition sgn z :=
-//   match z with
-//     | 0 => 0
-//     | pos p => 1
-//     | neg p => -1
-//   end.
-
-symbol sgn: ℤ → ℤ;
-rule sgn Z0 ↪ Z0
-with sgn (Zpos _) ↪ (Zpos H)
-with sgn (Zneg _) ↪ (Zneg H);
-
-
-// Definition ggcd a b : Z*(Z*Z) :=
-//   match a,b with
-//     | 0, _ => (abs b,(0, sgn b))
-//     | _, 0 => (abs a,(sgn a, 0))
-//     | pos a, pos b =>
-//        let '(g,(aa,bb)) := Pos.ggcd a b in (pos g, (pos aa, pos bb))
-//     | pos a, neg b =>
-//        let '(g,(aa,bb)) := Pos.ggcd a b in (pos g, (pos aa, neg bb))
-//     | neg a, pos b =>
-//        let '(g,(aa,bb)) := Pos.ggcd a b in (pos g, (neg aa, pos bb))
-//     | neg a, neg b =>
-//        let '(g,(aa,bb)) := Pos.ggcd a b in (pos g, (neg aa, neg bb))
-//   end.
-symbol Zggcd (a b: ℤ): τ (int × (int × int));
-rule Zggcd Z0 $b ↪ (abs $b ‚ (Z0 ‚ sgn $b))
-with Zggcd $a Z0 ↪ (abs $a ‚ (sgn $a ‚ Z0))
-with Zggcd (Zpos $a) (Zpos $b) ↪ 
-  let r ≔ pos_ggcd $a $b in
-    ((Zpos (r ₁)) ‚  (Zpos (r ₂ ₁) ‚  Zpos (r ₂ ₂)))
-with Zggcd (Zpos $a) (Zneg $b) ↪ 
-  let r ≔ pos_ggcd $a $b in
-    ((Zpos (r ₁)) ‚  (Zpos (r ₂ ₁) ‚  Zneg (r ₂ ₂)))
-with Zggcd (Zneg $a) (Zpos $b) ↪ 
-  let r ≔ pos_ggcd $a $b in
-    ((Zpos (r ₁)) ‚  (Zneg (r ₂ ₁) ‚  Zpos (r ₂ ₂)))
-with Zggcd (Zneg $a) (Zneg $b) ↪ 
-  let r ≔ pos_ggcd $a $b in
-    ((Zpos (r ₁)) ‚  (Zneg (r ₂ ₁) ‚  Zneg (r ₂ ₂)))
-;
-
-compute Zggcd (Zpos (O (O (O (I (I (O (O H)))))))) (Zpos (O (O (I H))));
-
-compute Zggcd (Zpos (Stdlib.Pos._8)) (Zpos (Stdlib.Pos._6));
-
-compute Zggcd (Zpos (Stdlib.Pos._4)) (Zpos (Stdlib.Pos._8));
-
-// Definition to_pos (z:Z) : positive :=
-//   match z with
-//     | pos p => p
-//     | _ => 1%positive
-//   end.
-symbol to_pos: ℤ → ℙ;
-rule to_pos (Zpos $p) ↪ $p
-with to_pos (Zneg _) ↪ H
-with to_pos Z0 ↪ H
-;
+// This function reduces the number `a` by the GCD compute with Stein algorithm
+symbol Z_red_Stein: ℤ → ℤ → ℤ;
+rule Z_red_Stein Z0 _ ↪ Z0 // 0 reduced by anything is 0 
+with Z_red_Stein $a Z0 ↪ sign $a // gcd(|a|, 0)  = |a| => a / |a| = sign(a)
+// Both nonzero: take gcd on ℙ payloads, keep sign of x
+with Z_red_Stein (Zpos $a) (Zpos $b) ↪ Zpos (red_by_Stein $a $b)
+with Z_red_Stein (Zpos $a) (Zneg $b) ↪ Zpos (red_by_Stein $a $b)
+with Z_red_Stein (Zneg $a) (Zpos $b) ↪ Zneg (red_by_Stein $a $b)
+with Z_red_Stein (Zneg $a) (Zneg $b) ↪ Zneg (red_by_Stein $a $b);
