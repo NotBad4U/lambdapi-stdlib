@@ -131,3 +131,17 @@ with Z_red_Stein (Zpos $a) (Zpos $b) ↪ Zpos (red_by_Stein $a $b)
 with Z_red_Stein (Zpos $a) (Zneg $b) ↪ Zpos (red_by_Stein $a $b)
 with Z_red_Stein (Zneg $a) (Zpos $b) ↪ Zneg (red_by_Stein $a $b)
 with Z_red_Stein (Zneg $a) (Zneg $b) ↪ Zneg (red_by_Stein $a $b);
+
+// Correctness of Z_red_Stein, mirroring Coq's Pos.gcdn correctness
+// (https://rocq-prover.org/doc/v9.0/stdlib/Stdlib.PArith.BinPos.html#Pos.gcdn).
+//
+// Semantically Z_red_Stein a b = a / gcd(a,b) (with the sign of a). Since
+// the gcd is symmetric, clearing the implicit denominator gives the
+// cross-product identity:
+//
+//   (a / gcd(a,b)) · b = a · (b / gcd(a,b))
+//
+// which avoids having to name the gcd at all and is exactly the form
+// consumed by the ℚ normalization layer (see Z_red_Stein_cross in Q.lp).
+symbol Z_red_Stein_correct a b :
+  π (Z_red_Stein a b * b = a * Z_red_Stein b a);

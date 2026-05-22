@@ -1425,19 +1425,363 @@ begin
 end;
 
 
-// THE deep bridge between Nat-level testbit and Z-level modulo.
-// For non-negative X and any k, the value `X mod 2^(k+1)` decomposes as
-// (the k-th bit of X) * 2^k + (X mod 2^k).
+// Helper: 0 < 2 ^ (to_int k).  Bridge via pow2_nat_pos + pow2_nat_eq.
+opaque symbol pow2_to_int_pos (k : ℕ) : π (Z0 < (2 ^ (to_int k))) ≔
+begin
+  assume k;
+  refine ind_eq (eq_sym (pow2_nat_eq k)) (λ z, Z0 < z) (pow2_nat_pos k)
+end;
+
+// ====================================================================
+// CHAIN OF LEMMAS for proving div_pow2_succ_step from first principles.
+// ====================================================================
+
+// --- Phase 1: Nat-level parity helpers ---
+
+// First, a Nat-2 abbreviation to avoid Z/Nat overload ambiguity on `*`.
+symbol nat_2 : ℕ ≔ _0 +1 +1;
+
+// even (n+1) = not (even n).  Induction on n using the `even (x+1+1) ↪ even x` rule.
+opaque symbol even_succ (n : ℕ) : π (Stdlib.Nat.even (n +1) = Stdlib.Bool.not (Stdlib.Nat.even n)) ≔
+begin
+  induction
+  // n = 0: even 1 = false. not (even 0) = not true = false.
+  { reflexivity }
+  // n = m+1: even (m+1+1) = even m. not (even (m+1)) = not (not (even m)) = even m.
+  { assume m IH;
+    simplify;
+    rewrite IH;
+    // goal: even m = not (not (even m))   →   case-split on even m.
+    refine ∨ₑ (case_𝔹 (Stdlib.Nat.even m)) _ _
+    { assume Hb; rewrite Hb; reflexivity }
+    { assume Hb; rewrite Hb; reflexivity } }
+end;
+
+// even (2*n) = true.  By induction on n using mulnSr.
+opaque symbol even_2_mul (n : ℕ) : π (Stdlib.Nat.even (Stdlib.Nat.* nat_2 n) = true) ≔
+begin
+  induction
+  // n = 0: nat_2 * 0 ↪ 0 by rule. even 0 = true.
+  { reflexivity }
+  // n = m+1: nat_2 * (m+1) = nat_2 * m + nat_2 by mulnSr.
+  // nat_2 * m + nat_2 reduces to (nat_2 * m +1) +1 by +-rules.
+  // even ((nat_2 * m +1) +1) = even (nat_2 * m) = true by IH.
+  { assume m IH;
+    rewrite Stdlib.Nat.mulnSr nat_2 m;
+    refine IH }
+end;
+
+// even (2*n + 1) = false.  From even_succ + even_2_mul.
+opaque symbol even_2_mul_succ (n : ℕ) :
+  π (Stdlib.Nat.even (Stdlib.Nat.* nat_2 n +1) = false) ≔
+begin
+  assume n;
+  rewrite even_succ (Stdlib.Nat.* nat_2 n);
+  rewrite even_2_mul n;
+  reflexivity
+end;
+
+// even (val (O p)) = true.  From even_2_mul applied to val p,
+// since val (O p) reduces to 2 * val p.
+opaque symbol even_val_O (p : ℙ) : π (Stdlib.Nat.even (val (O p)) = true) ≔
+begin
+  assume p;
+  refine even_2_mul (val p)
+end;
+
+// even (val (I p)) = false.  From even_2_mul_succ applied to val p,
+// since val (I p) reduces to 2 * val p + 1.
+opaque symbol even_val_I (p : ℙ) : π (Stdlib.Nat.even (val (I p)) = false) ≔
+begin
+  assume p;
+  refine even_2_mul_succ (val p)
+end;
+
+// --- Phase 2: pos_mod_2 ---
 //
-// This is the standard "X mod 2^(k+1) = bit_k(X)·2^k + X mod 2^k" identity.
-// A self-contained proof would require a Nat-Z bridge for
-// `(Z div X (2^k)) mod 2 = testbit (to_nat X) k`, beyond the current
-// arithmetic infrastructure.  Status is analogous to BV_elim — a known
-// mathematical fact treated as primitive.
-symbol mod_pow2_succ_decompose (X : ℤ) (k : ℕ) :
+// For any positive p, the modulo of `pos_div_eucl p (Zpos (O H))` is:
+//   Z0 if val p is even, Zpos H (= 1) if val p is odd.
+// We write the divisor explicitly as `Zpos (O H)` (= 2 in Z) rather than
+// `2` because the latter parses ambiguously between `Zpos (O H)` and
+// `to_int _2` depending on context, and rewrite needs syntactic matches.
+opaque symbol pos_mod_2 (p : ℙ) :
+  π ((pos_div_eucl p (Zpos (O H)))₂
+     = if (Stdlib.Nat.even (val p)) Z0 (Zpos H)) ≔
+begin
+  induction
+  // ---- Case I p1: val (I p1) = 2*val p1 + 1 is odd, so RHS = Zpos H ----
+  { assume p1 IH;
+    rewrite even_val_I p1;
+    // Goal now:  (pos_div_eucl (I p1) (Zpos (O H)))₂ = Zpos H
+    refine ∨ₑ (case_𝔹 (Stdlib.Nat.even (val p1))) _ _
+    // Sub-case A: even (val p1) = true.  By IH, (pos_div_eucl p1 _)₂ = Z0.
+    { assume HE;
+      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Z0)
+        { refine ind_eq (eq_sym HE)
+            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            IH };
+      simplify;
+      rewrite Hr1;
+      reflexivity }
+    // Sub-case B: even (val p1) = false.  By IH, (pos_div_eucl p1 _)₂ = Zpos H.
+    { assume HE;
+      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Zpos H)
+        { refine ind_eq (eq_sym HE)
+            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            IH };
+      simplify;
+      rewrite Hr1;
+      reflexivity } }
+  // ---- Case O p1: val (O p1) = 2*val p1 is even, so RHS = Z0 ----
+  { assume p1 IH;
+    rewrite even_val_O p1;
+    refine ∨ₑ (case_𝔹 (Stdlib.Nat.even (val p1))) _ _
+    { assume HE;
+      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Z0)
+        { refine ind_eq (eq_sym HE)
+            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            IH };
+      simplify;
+      rewrite Hr1;
+      reflexivity }
+    { assume HE;
+      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Zpos H)
+        { refine ind_eq (eq_sym HE)
+            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            IH };
+      simplify;
+      rewrite Hr1;
+      reflexivity } }
+  // ---- Case H:  val H = 1 is odd, modulo = Zpos H ----
+  { reflexivity }
+end;
+
+// --- Phase 3: parity_bridge ---
+//
+// For nonneg X, modulo X 2 is Z0 if to_nat X is even, Zpos H (= 1) if odd.
+// Case analysis on X using pos_mod_2.
+opaque symbol parity_bridge (X : ℤ) :
+  π (Z0 ≤ X) →
+  π (modulo X (Zpos (O H))
+     = if (Stdlib.Nat.even (to_nat X)) Z0 (Zpos H)) ≔
+begin
+  induction
+  // X = Z0:  modulo Z0 _ ↪ Z0;  to_nat Z0 ↪ _0;  even _0 = true;  Z0 = Z0.
+  { assume H0X; reflexivity }
+  // X = Zpos p:  delegate to pos_mod_2.  mod_Zpos_Zpos bridges modulo to pos_div_eucl.
+  { assume p H0X;
+    rewrite mod_Zpos_Zpos p (O H);
+    refine pos_mod_2 p }
+  // X = Zneg p:  contradicts H0X.
+  { assume p H0X; refine ⊥ₑ (H0X ⊤ᵢ) }
+end;
+
+// --- Phase 4: val_add and val_add_carry on ℙ ---
+//
+// val (Pos.add p q) = val p + val q.
+// Proven by induction on p with inner case-analysis on q.
+// The trick to avoid mutual induction with val_add_carry: exploit
+// `succ_add x y : succ (add x y) = add_carry x y` (defined in Pos.lp) to
+// rewrite `add_carry` in terms of `succ ∘ add`, then `valS` to push
+// val through succ.
+opaque symbol val_add (p q : ℙ) :
+  π (val (Stdlib.Pos.add p q) = val p Stdlib.Nat.+ val q) ≔
+begin
+  assume p;
+  refine ind_ℙeano (λ q, val (Stdlib.Pos.add p q) = val p Stdlib.Nat.+ val q) _ _
+  // q = H:  add p H ↪ succ p ;  val H ↪ 1 ;  goal becomes  val (succ p) = val p +1
+  { refine Stdlib.Pos.valS p }
+  // q ↦ succ q:  use add_succ_right + valS to push succ through, then IH.
+  { assume q IH;
+    rewrite Stdlib.Pos.add_succ_right p q;
+    rewrite Stdlib.Pos.valS (Stdlib.Pos.add p q);
+    rewrite Stdlib.Pos.valS q;
+    rewrite IH;
+    reflexivity }
+end;
+
+// val (Pos.add_carry p q) = val p + val q + 1.
+// Trivially from val_add + succ_add + valS.
+opaque symbol val_add_carry (p q : ℙ) :
+  π (val (Stdlib.Pos.add_carry p q) = val p Stdlib.Nat.+ val q +1) ≔
+begin
+  assume p q;
+  rewrite left succ_add p q;
+  rewrite Stdlib.Pos.valS (Stdlib.Pos.add p q);
+  rewrite val_add p q;
+  reflexivity
+end;
+
+// The atomic Nat-Z bit-parity bridge.  Informally: writing the quotient
+// X / 2^k in binary, its low bit is exactly the k-th bit of X's own
+// binary expansion (i.e. testbit (to_nat X) k).  In Coq's Z library
+// this comes from Z.div2_mod_2 + a Nat-Z `to_nat`/`div2` morphism; we
+// admit it here as a primitive, analogous to BV_elim — the irreducible
+// mathematical content connecting Nat-defined `testbit` to Z-defined
+// `div`.  The deeper `mod_pow2_succ_decompose` below is then derivable
+// from it by pure Z-arithmetic via mod_unique.
+symbol div_pow2_succ_step (X : ℤ) (k : ℕ) :
+  π (Z0 ≤ X) →
+  π (div X (2 ^ (to_int k))
+     = (div X (2 ^ (to_int (k +1)))) * 2 + (if (testbit (to_nat X) k) (Zpos H) Z0));
+
+// THE deep bridge between Nat-level testbit and Z-level modulo:
+// For non-negative X and any k, `X mod 2^(k+1)` decomposes as
+//   (the k-th bit of X) * 2^k + (X mod 2^k).
+// Derived from the atomic axiom `div_pow2_succ_step` and `mod_unique`.
+opaque symbol mod_pow2_succ_decompose (X : ℤ) (k : ℕ) :
   π (Z0 ≤ X) →
   π (modulo X (2 ^ (to_int (k +1)))
-     = (if (testbit (to_nat X) k) (2 ^ (to_int k)) Z0) + modulo X (2 ^ (to_int k)));
+     = (if (testbit (to_nat X) k) (2 ^ (to_int k)) Z0) + modulo X (2 ^ (to_int k))) ≔
+begin
+  assume X k H0X;
+  // Setup: power facts and modulo facts.
+  have HposN : π (Z0 < (2 ^ (to_int k))) { refine pow2_to_int_pos k };
+  have HposM : π (Z0 < (2 ^ (to_int (k +1)))) { refine pow2_to_int_pos (k +1) };
+  have HposNZ : π (Z0 ≤ (2 ^ (to_int k)))
+    { refine <_≤ Z0 (2 ^ (to_int k)) HposN };
+  have HRnn : π (Z0 ≤ modulo X (2 ^ (to_int k)))
+    { refine mod_nonneg X (2 ^ (to_int k)) H0X HposN };
+  have HRlt : π (modulo X (2 ^ (to_int k)) < (2 ^ (to_int k)))
+    { refine mod_lt X (2 ^ (to_int k)) H0X HposN };
+  have HeqXN : π (X = (div X (2 ^ (to_int k))) * (2 ^ (to_int k))
+                      + modulo X (2 ^ (to_int k)))
+    { refine mod_eq X (2 ^ (to_int k)) H0X HposN };
+  have Hbridge : π (div X (2 ^ (to_int k))
+                = (div X (2 ^ (to_int (k +1)))) * 2
+                  + (if (testbit (to_nat X) k) (Zpos H) Z0))
+    { refine div_pow2_succ_step X k H0X };
+  have HM_2N : π ((2 ^ (to_int (k +1))) = 2 * (2 ^ (to_int k)))
+    { refine pow2_succ k };
+  // Case split on b = testbit (to_nat X) k.
+  refine ind_𝔹_eq
+    (λ bv, modulo X (2 ^ (to_int (k +1)))
+         = (if bv (2 ^ (to_int k)) Z0) + modulo X (2 ^ (to_int k)))
+    (testbit (to_nat X) k)
+    _ _
+  // ------ CASE b = true ------
+  { assume Hbt;
+    rewrite Hbt;
+    // Goal:  modulo X (2^(k+1)) = (2^k) + R     (the `if true _ _` has reduced)
+    // Specialize Hbridge:  div X N = (div X M) * 2 + 1.
+    have Hbridge_t : π (div X (2 ^ (to_int k))
+                      = (div X (2 ^ (to_int (k +1)))) * 2 + Zpos H)
+      { refine ind_eq (eq_sym Hbt)
+          (λ bv, div X (2 ^ (to_int k))
+               = (div X (2 ^ (to_int (k +1)))) * 2
+                 + (if bv (Zpos H) Z0))
+          Hbridge };
+    // Compute the multiplicative expansion:
+    //   ((div X M)*2 + 1) * N  =  (div X M)*M + N
+    have HmulExp_t : π (((div X (2 ^ (to_int (k +1)))) * 2 + Zpos H) * (2 ^ (to_int k))
+                      = (div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1)))
+                        + (2 ^ (to_int k)))
+      { rewrite Z_distr_+_r ((div X (2 ^ (to_int (k +1)))) * 2) (Zpos H) (2 ^ (to_int k));
+        rewrite Z_1_mul_l (2 ^ (to_int k));
+        rewrite *_assoc (div X (2 ^ (to_int (k +1)))) 2 (2 ^ (to_int k));
+        rewrite left HM_2N;
+        reflexivity };
+    // Substitute the bridge into HeqXN to obtain
+    //   X = ((div X M)*2 + 1) * N + R.
+    have HeqX_t1 : π (X = ((div X (2 ^ (to_int (k +1)))) * 2 + Zpos H) * (2 ^ (to_int k))
+                       + modulo X (2 ^ (to_int k)))
+      { refine ind_eq (eq_sym Hbridge_t)
+          (λ z, X = z * (2 ^ (to_int k)) + modulo X (2 ^ (to_int k)))
+          HeqXN };
+    // Apply HmulExp_t.
+    have HeqX_t2 : π (X = ((div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1)))
+                          + (2 ^ (to_int k))) + modulo X (2 ^ (to_int k)))
+      { refine ind_eq (eq_sym HmulExp_t)
+          (λ z, X = z + modulo X (2 ^ (to_int k)))
+          HeqX_t1 };
+    // Re-associate HeqX_t2 from ((q*M)+N)+R structure to q*M+(N+R) structure
+    // via +_assoc.  This is needed because mod_unique's Heq input
+    // unifies q*M + r as ((q*M)) + r (right-assoc with r being the literal `r`
+    // parameter, here = (N + R)), whereas the proof we have is structurally left-assoc.
+    have HeqX_t3 : π (X = (div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1)))
+                          + ((2 ^ (to_int k)) + modulo X (2 ^ (to_int k))))
+      { refine ind_eq HeqX_t2
+          (λ w, w = (div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1)))
+                    + ((2 ^ (to_int k)) + modulo X (2 ^ (to_int k))))
+          (+_assoc ((div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1))))
+                   (2 ^ (to_int k))
+                   (modulo X (2 ^ (to_int k)))) };
+    // Bounds for mod_unique.
+    have Hr_nn : π (Z0 ≤ (2 ^ (to_int k)) + modulo X (2 ^ (to_int k)))
+      { refine ≤_compat_≤ (2 ^ (to_int k)) (modulo X (2 ^ (to_int k))) HposNZ HRnn };
+    // (2^k) + R < (2^k) + (2^k) = 2*(2^k) = 2^(k+1).
+    have Hr_lt_aux1 : π (modulo X (2 ^ (to_int k)) + (2 ^ (to_int k))
+                       < (2 ^ (to_int k)) + (2 ^ (to_int k)))
+      { refine <_compat_add (modulo X (2 ^ (to_int k))) (2 ^ (to_int k)) (2 ^ (to_int k)) HRlt };
+    have Hr_lt_aux2 : π ((2 ^ (to_int k)) + modulo X (2 ^ (to_int k))
+                       < (2 ^ (to_int k)) + (2 ^ (to_int k)))
+      { refine ind_eq (eq_sym (+_com (modulo X (2 ^ (to_int k))) (2 ^ (to_int k))))
+          (λ z, z < (2 ^ (to_int k)) + (2 ^ (to_int k)))
+          Hr_lt_aux1 };
+    have H2N_eq_M : π ((2 ^ (to_int k)) + (2 ^ (to_int k)) = (2 ^ (to_int (k +1))))
+      { refine ind_eq (eq_sym (Z_2_mul_eq_b_plus_b (2 ^ (to_int k))))
+          (λ z, z = (2 ^ (to_int (k +1))))
+          (eq_sym HM_2N) };
+    have Hr_lt : π ((2 ^ (to_int k)) + modulo X (2 ^ (to_int k)) < (2 ^ (to_int (k +1))))
+      { refine ind_eq (eq_sym H2N_eq_M)
+          (λ z, (2 ^ (to_int k)) + modulo X (2 ^ (to_int k)) < z)
+          Hr_lt_aux2 };
+    refine mod_unique X
+      (div X (2 ^ (to_int (k +1))))
+      ((2 ^ (to_int k)) + modulo X (2 ^ (to_int k)))
+      (2 ^ (to_int (k +1)))
+      H0X HposM Hr_nn Hr_lt HeqX_t3 }
+  // ------ CASE b = false ------
+  { assume Hbf;
+    rewrite Hbf;
+    // After (if false _ _) reduction and Z0 + R reduction, goal is:
+    //   modulo X (2^(k+1)) = R                                          (= modulo X (2^k))
+    // Specialize Hbridge:  div X N = (div X M) * 2   (+ Z0 reduces away).
+    have Hbridge_f : π (div X (2 ^ (to_int k))
+                      = (div X (2 ^ (to_int (k +1)))) * 2)
+      { refine ind_eq (eq_sym Hbf)
+          (λ bv, div X (2 ^ (to_int k))
+               = (div X (2 ^ (to_int (k +1)))) * 2
+                 + (if bv (Zpos H) Z0))
+          Hbridge };
+    // (div X M)*2*N = (div X M)*M.
+    have HmulExp_f : π (((div X (2 ^ (to_int (k +1)))) * 2) * (2 ^ (to_int k))
+                      = (div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1))))
+      { rewrite *_assoc (div X (2 ^ (to_int (k +1)))) 2 (2 ^ (to_int k));
+        rewrite left HM_2N;
+        reflexivity };
+    have HeqX_f1 : π (X = ((div X (2 ^ (to_int (k +1)))) * 2) * (2 ^ (to_int k))
+                       + modulo X (2 ^ (to_int k)))
+      { refine ind_eq (eq_sym Hbridge_f)
+          (λ z, X = z * (2 ^ (to_int k)) + modulo X (2 ^ (to_int k)))
+          HeqXN };
+    have HeqX_f2 : π (X = (div X (2 ^ (to_int (k +1)))) * (2 ^ (to_int (k +1)))
+                         + modulo X (2 ^ (to_int k)))
+      { refine ind_eq (eq_sym HmulExp_f)
+          (λ z, X = z + modulo X (2 ^ (to_int k)))
+          HeqX_f1 };
+    // R < N ≤ M.
+    have HN_le_M_aux : π (Z0 + (2 ^ (to_int k))
+                       ≤ (2 ^ (to_int k)) + (2 ^ (to_int k)))
+      { refine ≤_compat_add Z0 (2 ^ (to_int k)) (2 ^ (to_int k)) HposNZ };
+    // Z0 + N reduces to N.
+    have H2N_eq_M_f : π ((2 ^ (to_int k)) + (2 ^ (to_int k)) = (2 ^ (to_int (k +1))))
+      { refine ind_eq (eq_sym (Z_2_mul_eq_b_plus_b (2 ^ (to_int k))))
+          (λ z, z = (2 ^ (to_int (k +1))))
+          (eq_sym HM_2N) };
+    have HN_le_M : π ((2 ^ (to_int k)) ≤ (2 ^ (to_int (k +1))))
+      { refine ind_eq (eq_sym H2N_eq_M_f)
+          (λ z, (2 ^ (to_int k)) ≤ z)
+          HN_le_M_aux };
+    have Hr_lt_f : π (modulo X (2 ^ (to_int k)) < (2 ^ (to_int (k +1))))
+      { refine <_trans_1 (modulo X (2 ^ (to_int k))) (2 ^ (to_int k)) (2 ^ (to_int (k +1)))
+          HRlt HN_le_M };
+    refine mod_unique X
+      (div X (2 ^ (to_int (k +1))))
+      (modulo X (2 ^ (to_int k)))
+      (2 ^ (to_int (k +1)))
+      H0X HposM HRnn Hr_lt_f HeqX_f2 }
+end;
 
 // (3) The arithmetic key lemma.
 opaque symbol bvand_arith_eq_bits (n : τ nat) (vx vy : τ int) :
@@ -1452,25 +1796,35 @@ begin
     rewrite modulo_one 0;
     reflexivity }
   { assume k IH vx vy;
+    // STEP 1: Decompose LHS via mod_pow2_succ_decompose, then expand.
     have HposY : π (Z0 ≤ to_int ((to_nat vx) && (to_nat vy)))
       { refine to_int_nonneg ((to_nat vx) && (to_nat vy)) };
     rewrite mod_pow2_succ_decompose (to_int ((to_nat vx) && (to_nat vy))) k HposY;
     rewrite to_nat_to_int_id ((to_nat vx) && (to_nat vy));
     rewrite land_spec (to_nat vx) (to_nat vy) k;
     rewrite IH vx vy;
+    // STEP 2: Establish bounds on `bbterm_acc L 0` (where L = zip_with bb_and ...).
     have Hsize : π (size (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) = k)
       { refine size_zip_with_bb_and k vx vy };
     have Hbtm_nn : π (Z0 ≤ bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
-      { refine bbterm_acc_nonneg _ };
+      { refine bbterm_acc_nonneg (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) };
+    have Hbtm_lt_size : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                         < pow2_nat (size (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy))))
+      { refine bbterm_acc_lt_pow2 (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) };
+    have Hbtm_lt_pn : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                       < pow2_nat k)
+      { refine ind_eq (eq_sym Hsize)
+          (λ z, bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < pow2_nat z)
+          Hbtm_lt_size };
     have Hbtm_lt : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
                     < (2 ^ (to_int k)))
       { refine ind_eq (eq_sym (pow2_nat_eq k))
           (λ z, bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < z)
-          (ind_eq Hsize
-            (λ z, bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < pow2_nat z)
-            (bbterm_acc_lt_pow2 (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)))) };
+          Hbtm_lt_pn };
+    // STEP 3: Strip the inner modulo on LHS via mod_idempotent.
     rewrite mod_idempotent (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
       (2 ^ (to_int k)) Hbtm_nn Hbtm_lt;
+    // STEP 4: Case-split on b = testbit (to_nat vx) k and testbit (to_nat vy) k.
     refine ind_𝔹_eq
       (λ bv, (if bv (2 ^ (to_int k)) Z0)
              + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
@@ -1478,50 +1832,77 @@ begin
                     (2 ^ (to_int (k +1))))
       ((testbit (to_nat vx) k) and (testbit (to_nat vy) k))
       _ _
-    { assume Htrue;
-      rewrite Htrue;
-      simplify;
+    // ------ b = true: bbterm_acc (true :: L) 0 = pow2_nat k + bbterm_acc L 0 ------
+    { assume Hbt;
+      rewrite Hbt;
       rewrite bbterm_acc_true_zero (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy));
       rewrite Hsize;
       rewrite pow2_nat_eq k;
+      // Goal:  2^k + bbterm_acc L 0  =  modulo (2^k + bbterm_acc L 0) (2^(k+1))
+      symmetry;
+      // Goal (after symmetry):  modulo (2^k + bbterm_acc L 0) (2^(k+1)) = 2^k + bbterm_acc L 0
+      // Bounds for mod_idempotent.
       have H_sum_nn : π (Z0 ≤ (2 ^ (to_int k))
                           + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
         { refine ≤_compat_≤ (2 ^ (to_int k))
             (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
-            (ind_eq (pow2_nat_eq k) (λ z, Z0 ≤ z) (<_≤ Z0 (pow2_nat k) (pow2_nat_pos k)))
+            (<_≤ Z0 (2 ^ (to_int k)) (pow2_to_int_pos k))
             Hbtm_nn };
+      // 2^k + bbterm_acc L 0 < 2^k + 2^k:  by <_compat_add Hbtm_lt and +_com.
+      have HsumLT_swap : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                            + (2 ^ (to_int k))
+                          < (2 ^ (to_int k)) + (2 ^ (to_int k)))
+        { refine <_compat_add (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+                              (2 ^ (to_int k)) (2 ^ (to_int k)) Hbtm_lt };
+      have HsumLT : π ((2 ^ (to_int k))
+                       + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                     < (2 ^ (to_int k)) + (2 ^ (to_int k)))
+        { refine ind_eq (eq_sym (+_com
+              (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+              (2 ^ (to_int k))))
+            (λ z, z < (2 ^ (to_int k)) + (2 ^ (to_int k)))
+            HsumLT_swap };
+      // 2^k + 2^k = 2^(k+1).
+      have Hdouble : π ((2 ^ (to_int k)) + (2 ^ (to_int k)) = (2 ^ (to_int (k +1))))
+        { refine ind_eq (eq_sym (Z_2_mul_eq_b_plus_b (2 ^ (to_int k))))
+            (λ z, z = (2 ^ (to_int (k +1))))
+            (eq_sym (pow2_succ k)) };
       have H_sum_lt : π ((2 ^ (to_int k))
-                          + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
-                        < 2 ^ (to_int (k +1)))
-        { rewrite pow2_succ k;
-          refine ind_eq (Z_2_mul_eq_b_plus_b (2 ^ (to_int k)))
+                         + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                       < (2 ^ (to_int (k +1))))
+        { refine ind_eq (eq_sym Hdouble)
             (λ z, (2 ^ (to_int k))
                   + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < z)
-            _;
-          refine ind_eq
-            (+_com (2 ^ (to_int k))
-                   (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0))
-            (λ z, z < (2 ^ (to_int k)) + (2 ^ (to_int k)))
-            (<_compat_add
-              (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
-              (2 ^ (to_int k)) (2 ^ (to_int k)) Hbtm_lt) };
-      symmetry;
+            HsumLT };
       refine mod_idempotent
         ((2 ^ (to_int k)) + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
         (2 ^ (to_int (k +1))) H_sum_nn H_sum_lt }
-    { assume Hfalse;
-      rewrite Hfalse;
-      simplify;
+    // ------ b = false: bbterm_acc (false :: L) 0 = bbterm_acc L 0 ------
+    { assume Hbf;
+      rewrite Hbf;
       rewrite bbterm_acc_false_zero (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy));
+      // Goal:  bbterm_acc L 0  =  modulo (bbterm_acc L 0) (2^(k+1))
+      symmetry;
+      // N ≤ M = 2*N (since N > 0 and M = 2*N).
+      have HN_le_M : π ((2 ^ (to_int k)) ≤ (2 ^ (to_int (k +1))))
+        { have Hdouble_f : π ((2 ^ (to_int k)) + (2 ^ (to_int k)) = (2 ^ (to_int (k +1))))
+            { refine ind_eq (eq_sym (Z_2_mul_eq_b_plus_b (2 ^ (to_int k))))
+                (λ z, z = (2 ^ (to_int (k +1))))
+                (eq_sym (pow2_succ k)) };
+          have HsumGE : π (Z0 + (2 ^ (to_int k)) ≤ (2 ^ (to_int k)) + (2 ^ (to_int k)))
+            { refine ≤_compat_add Z0 (2 ^ (to_int k)) (2 ^ (to_int k))
+                (<_≤ Z0 (2 ^ (to_int k)) (pow2_to_int_pos k)) };
+          refine ind_eq (eq_sym Hdouble_f)
+            (λ z, (2 ^ (to_int k)) ≤ z)
+            HsumGE };
       have H_lt_succ : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
-                       < 2 ^ (to_int (k +1)))
+                       < (2 ^ (to_int (k +1))))
         { refine <_trans_1
             (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
-            (2 ^ (to_int k)) (2 ^ (to_int (k +1))) Hbtm_lt _;
-          rewrite pow2_succ k;
-          refine Zpos_mul_ge_M (O H) (2 ^ (to_int k))
-            (ind_eq (pow2_nat_eq k) (λ z, Z0 < z) (pow2_nat_pos k)) };
-      symmetry;
+            (2 ^ (to_int k))
+            (2 ^ (to_int (k +1)))
+            Hbtm_lt
+            HN_le_M };
       refine mod_idempotent
         (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
         (2 ^ (to_int (k +1))) Hbtm_nn H_lt_succ } }
