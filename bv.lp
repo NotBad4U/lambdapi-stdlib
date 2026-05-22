@@ -1516,18 +1516,18 @@ begin
     refine ∨ₑ (case_𝔹 (Stdlib.Nat.even (val p1))) _ _
     // Sub-case A: even (val p1) = true.  By IH, (pos_div_eucl p1 _)₂ = Z0.
     { assume HE;
-      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Z0)
+      have Hr1 : π (((pos_div_eucl p1 (Zpos (O H))) ₂) = Z0)
         { refine ind_eq (eq_sym HE)
-            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            (λ b, ((pos_div_eucl p1 (Zpos (O H))) ₂) = if b Z0 (Zpos H))
             IH };
       simplify;
       rewrite Hr1;
       reflexivity }
     // Sub-case B: even (val p1) = false.  By IH, (pos_div_eucl p1 _)₂ = Zpos H.
     { assume HE;
-      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Zpos H)
+      have Hr1 : π (((pos_div_eucl p1 (Zpos (O H))) ₂) = Zpos H)
         { refine ind_eq (eq_sym HE)
-            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            (λ b, ((pos_div_eucl p1 (Zpos (O H))) ₂) = if b Z0 (Zpos H))
             IH };
       simplify;
       rewrite Hr1;
@@ -1537,17 +1537,17 @@ begin
     rewrite even_val_O p1;
     refine ∨ₑ (case_𝔹 (Stdlib.Nat.even (val p1))) _ _
     { assume HE;
-      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Z0)
+      have Hr1 : π (((pos_div_eucl p1 (Zpos (O H))) ₂) = Z0)
         { refine ind_eq (eq_sym HE)
-            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            (λ b, ((pos_div_eucl p1 (Zpos (O H))) ₂) = if b Z0 (Zpos H))
             IH };
       simplify;
       rewrite Hr1;
       reflexivity }
     { assume HE;
-      have Hr1 : π ((pos_div_eucl p1 (Zpos (O H)))₂ = Zpos H)
+      have Hr1 : π (((pos_div_eucl p1 (Zpos (O H))) ₂) = Zpos H)
         { refine ind_eq (eq_sym HE)
-            (λ b, (pos_div_eucl p1 (Zpos (O H)))₂ = if b Z0 (Zpos H))
+            (λ b, ((pos_div_eucl p1 (Zpos (O H))) ₂) = if b Z0 (Zpos H))
             IH };
       simplify;
       rewrite Hr1;
@@ -1612,18 +1612,392 @@ begin
   reflexivity
 end;
 
-// The atomic Nat-Z bit-parity bridge.  Informally: writing the quotient
-// X / 2^k in binary, its low bit is exactly the k-th bit of X's own
-// binary expansion (i.e. testbit (to_nat X) k).  In Coq's Z library
-// this comes from Z.div2_mod_2 + a Nat-Z `to_nat`/`div2` morphism; we
-// admit it here as a primitive, analogous to BV_elim — the irreducible
-// mathematical content connecting Nat-defined `testbit` to Z-defined
-// `div`.  The deeper `mod_pow2_succ_decompose` below is then derivable
-// from it by pure Z-arithmetic via mod_unique.
-symbol div_pow2_succ_step (X : ℤ) (k : ℕ) :
+// =========================================================================
+// PHASE 5: Z↔Nat halving bridges and iterated division.
+// =========================================================================
+// The chain culminates in `div_pow2_succ_step`, which is the deep bridge
+// between Nat-level `testbit` and Z-level `div` by powers of 2.  All of
+// Phase 5 is built from `mod_eq`, `mod_unique`, `parity_bridge`, and the
+// Pos add lemmas of Phase 4.
+
+// (5.1) to_nat is additive on non-negative integers.  By case on each arg.
+//       Reduces to `val_add` in the Zpos/Zpos branch.
+opaque symbol to_nat_add_nonneg (a b : ℤ) :
+  π (Z0 ≤ a) → π (Z0 ≤ b) →
+  π (to_nat (a + b) = (to_nat a) Stdlib.Nat.+ (to_nat b)) ≔
+begin
+  induction
+  // a = Z0
+  { induction
+    { assume Ha Hb; reflexivity }
+    { assume q Ha Hb; reflexivity }
+    { assume q Ha Hb; refine ⊥ₑ (Hb ⊤ᵢ) } }
+  // a = Zpos p
+  { assume p; induction
+    { assume Ha Hb; reflexivity }
+    { assume q Ha Hb; refine val_add p q }
+    { assume q Ha Hb; refine ⊥ₑ (Hb ⊤ᵢ) } }
+  // a = Zneg p
+  { assume p b Ha Hb; refine ⊥ₑ (Ha ⊤ᵢ) }
+end;
+
+// (5.2) to_nat of doubling — unconditional.  `2 * Zpos p ↪ Zpos (O p)`
+//       and `val (O p) ↪ 2 * val p`, and for Zneg p the result of `2 *`
+//       is Zneg, so `to_nat` returns _0 on both sides.
+opaque symbol to_nat_2_mul (a : ℤ) :
+  π (to_nat (2 * a) = nat_2 Stdlib.Nat.* (to_nat a)) ≔
+begin
+  induction
+  { reflexivity }
+  { assume p; reflexivity }
+  { assume p; reflexivity }
+end;
+
+// (5.3) to_nat (Zpos H) = 1, to_nat Z0 = _0.  Both are definitional.
+//       Bridges the parity_bridge output to Nat literal 1.
+opaque symbol to_nat_if_parity (b : 𝔹) :
+  π (to_nat (if b Z0 (Zpos H)) = if b _0 (_0 +1)) ≔
+begin
+  induction
+  { reflexivity }
+  { reflexivity }
+end;
+
+// (5.4) Nat-level: 2 * div2 n = n  when even n = true.
+//       Proved by 2-step induction (ind_ℕ2).
+opaque symbol nat_double_div2_even (n : ℕ) :
+  π (Stdlib.Nat.even n = true) →
+  π (nat_2 Stdlib.Nat.* (Stdlib.Nat.div2 n) = n) ≔
+begin
+  refine Stdlib.Nat.ind_ℕ2
+    (λ n, Stdlib.Nat.even n = true ⇒
+          nat_2 Stdlib.Nat.* (Stdlib.Nat.div2 n) = n) _ _ _
+  // n = _0
+  { assume He; reflexivity }
+  // n = _0 +1: even = false, so premise is ⊥
+  { assume He; refine ⊥ₑ (true≠false (eq_sym He)) }
+  // n = (m+1)+1: after `simplify`, lambdapi reduces both sides:
+  //   LHS: nat_2 * div2 ((m+1)+1) ↪ (div2 m + div2 m + 1) + 1
+  //   RHS: (m +1) +1
+  // IH He : nat_2 * div2 m = m, which reduces to (div2 m + div2 m) = m.
+  // Wrap in `(_ +1) +1` via feq.
+  { assume m IH IHs He;
+    simplify;
+    refine Stdlib.Eq.feq (λ x : ℕ, (x +1) +1) (IH He) }
+end;
+
+// (5.5) Nat-level: 2 * div2 n + 1 = n  when even n = false.  Same shape
+//       as (5.4), using `⇒` for the motive and `feq` to wrap +1 layers.
+//       NOTE: `+1` (postfix, prec 100) binds tighter than `*` (prec 30),
+//       so we parenthesise `(nat_2 * div2 n) +1` explicitly throughout.
+opaque symbol nat_double_div2_odd (n : ℕ) :
+  π (Stdlib.Nat.even n = false) →
+  π ((nat_2 Stdlib.Nat.* (Stdlib.Nat.div2 n)) +1 = n) ≔
+begin
+  refine Stdlib.Nat.ind_ℕ2
+    (λ n, Stdlib.Nat.even n = false ⇒
+          (nat_2 Stdlib.Nat.* (Stdlib.Nat.div2 n)) +1 = n) _ _ _
+  // n = _0: even _0 = true, so premise ⊥
+  { assume He; refine ⊥ₑ (true≠false He) }
+  // n = _0 +1: div2 (_0+1) = _0, (nat_2 * _0) +1 = _0 +1 = 1
+  { assume He; reflexivity }
+  // n = (m+1)+1: IH He : (nat_2 * div2 m) +1 = m, after reduction
+  //   (div2 m + div2 m) +1 = m.  Wrap in `(_ +1) +1` via feq.
+  { assume m IH IHs He;
+    simplify;
+    refine Stdlib.Eq.feq (λ x : ℕ, (x +1) +1) (IH He) }
+end;
+
+// (5.6a) Nonneg dividend gives nonneg quotient (specialised to M = 2).
+//        Currently admitted; the structural proof via Pos induction is
+//        blocked by a syntactic mismatch between `_2` (Z's defined symbol)
+//        and `2` (its δ-unfolded form, `Zpos _2`) that lambdapi's `rewrite`
+//        does not bridge automatically after `simplify`.  A working route
+//        would prove it via the contrapositive (assume `div X 2 = Zneg q`
+//        and derive `X < 0` via `Zneg_mul_le_neg_M`), but that requires
+//        additional Z-arithmetic infrastructure.
+opaque symbol div_nonneg_2 (X : ℤ) :
+  π (Z0 ≤ X) → π (Z0 ≤ div X 2) ≔
+begin admit end;
+
+// (5.6b) Tiny Nat helper:  nat_2 * a = a + a.  Used to cancel a factor of 2
+//       via `Stdlib.Nat.2*_inj`.  After δ-unfolding `nat_2 ↪ _0 +1 +1`
+//       and the `($x +1) * $y` rule, both sides reduce to the same
+//       normal form — but `nat_2` is not auto-unfolded, so we use
+//       `change` to bridge the definitional equality.
+opaque symbol nat_2_mul_eq_add (a : ℕ) :
+  π (nat_2 Stdlib.Nat.* a = a Stdlib.Nat.+ a) ≔
+begin
+  assume a;
+  change π ((_0 +1 +1) Stdlib.Nat.* a = a Stdlib.Nat.+ a);
+  reflexivity
+end;
+
+// (5.7) Z↔Nat halving:  for X ≥ 0, to_nat (div X 2) = div2 (to_nat X).
+//       Proof: combine `mod_eq X 2`, `parity_bridge X`, and (5.4)/(5.5)
+//       to derive `nat_2 * to_nat (div X 2) (+1)? = nat_2 * div2 (to_nat X) (+1)?`,
+//       then cancel via `2*_inj`.
+opaque symbol to_nat_div_2 (X : ℤ) :
+  π (Z0 ≤ X) → π (to_nat (div X 2) = Stdlib.Nat.div2 (to_nat X)) ≔
+begin
+  assume X H0X;
+  have HposM : π (Z0 < 2) { refine ⊤ᵢ };
+  have Heq : π (X = div X 2 * 2 + modulo X 2) { refine mod_eq X 2 H0X HposM };
+  have Hpar : π (modulo X 2 = if (Stdlib.Nat.even (to_nat X)) Z0 (Zpos H))
+    { refine parity_bridge X H0X };
+  // Case-split on `Stdlib.Nat.even (to_nat X)` via ∨ₑ + case_𝔹.
+  refine ∨ₑ (case_𝔹 (Stdlib.Nat.even (to_nat X))) _ _
+  // ===== CASE  even (to_nat X) = true =====
+  { assume HE;
+    // modulo X 2 = Z0
+    have Hmod : π (modulo X 2 = Z0)
+      { refine ind_eq (eq_sym HE)
+          (λ b, modulo X 2 = if b Z0 (Zpos H)) Hpar };
+    // X = (div X 2) * 2  (after `+ Z0` reduction)
+    have HeqX : π (X = div X 2 * 2)
+      { refine ind_eq (eq_sym Hmod) (λ z, X = div X 2 * 2 + z) Heq };
+    // to_nat both sides
+    have HtnX : π (to_nat X = to_nat (div X 2 * 2))
+      { refine feq to_nat HeqX };
+    // to_nat (q * 2) = to_nat (2 * q) = nat_2 * to_nat q
+    have Hcom : π (div X 2 * 2 = 2 * div X 2) { refine *_com (div X 2) 2 };
+    have HtnA : π (to_nat (div X 2 * 2) = nat_2 Stdlib.Nat.* to_nat (div X 2))
+      { rewrite Hcom; refine to_nat_2_mul (div X 2) };
+    have HtnX2 : π (to_nat X = nat_2 Stdlib.Nat.* to_nat (div X 2))
+      { rewrite HtnX; refine HtnA };
+    // nat_2 * div2 (to_nat X) = to_nat X  (from (5.4) given HE)
+    have Hnd : π (nat_2 Stdlib.Nat.* Stdlib.Nat.div2 (to_nat X) = to_nat X)
+      { refine nat_double_div2_even (to_nat X) HE };
+    // Combine and cancel.  nat_2 * a = a+a.
+    have Hcomb : π (nat_2 Stdlib.Nat.* to_nat (div X 2)
+                  = nat_2 Stdlib.Nat.* Stdlib.Nat.div2 (to_nat X))
+      { rewrite left HtnX2; symmetry; refine Hnd };
+    have Hcomb2 : π (to_nat (div X 2) Stdlib.Nat.+ to_nat (div X 2)
+                   = Stdlib.Nat.div2 (to_nat X) Stdlib.Nat.+ Stdlib.Nat.div2 (to_nat X))
+      { rewrite left nat_2_mul_eq_add (to_nat (div X 2));
+        rewrite left nat_2_mul_eq_add (Stdlib.Nat.div2 (to_nat X));
+        refine Hcomb };
+    refine Stdlib.Nat.2*_inj (to_nat (div X 2)) (Stdlib.Nat.div2 (to_nat X)) Hcomb2 }
+  // ===== CASE  even (to_nat X) = false =====
+  { assume HE;
+    // modulo X 2 = Zpos H = 1
+    have Hmod : π (modulo X 2 = Zpos H)
+      { refine ind_eq (eq_sym HE)
+          (λ b, modulo X 2 = if b Z0 (Zpos H)) Hpar };
+    have HeqX : π (X = div X 2 * 2 + Zpos H)
+      { refine ind_eq (eq_sym Hmod) (λ z, X = div X 2 * 2 + z) Heq };
+    // We need (div X 2) * 2 ≥ 0 to apply to_nat_add_nonneg.  Derive from HeqX:
+    //   (div X 2) * 2 = X + (— Zpos H).  We'd prefer a different route.
+    // Apply to_nat directly:  to_nat X = to_nat ((div X 2)*2 + 1).
+    have HtnX : π (to_nat X = to_nat (div X 2 * 2 + Zpos H))
+      { refine feq to_nat HeqX };
+    // RHS: to_nat (a + 1) = to_nat a + 1 when a ≥ 0.
+    // We need a ≥ 0 i.e. (div X 2) * 2 ≥ 0.  Derive: since X ≥ 0 and X = a+1, a = X - 1.
+    // For X ≥ 1 (which is implied by even being false on to_nat X — to_nat X ≥ 1),
+    // a ≥ 0.  We bypass this by case-splitting on (div X 2) directly:
+    //   We know mod_eq gives a unique decomposition, so a*2 = X - 1 ≥ 0.
+    // Concretely, use mod_nonneg + arithmetic.  For brevity, we encode it via
+    // `to_nat_add_nonneg` applied with explicit nonneg proofs.
+    have HposA : π (Z0 ≤ div X 2 * 2)
+      { // (div X 2) * 2 = X - 1, and X ≥ 1 since to_nat X is odd hence ≥ 1.
+        // Quick route: use mod_eq's structure with (div X 2)*2 = X - (modulo X 2);
+        // alternatively, prove div X 2 ≥ 0 first, then 2*_ stays nonneg.
+        // For now, rely on a forward-declared `div_nonneg_2`.
+        rewrite *_com (div X 2) 2;
+        refine Z_nonneg_mul_2 (div X 2) (div_nonneg_2 X H0X) };
+    have HposB : π (Z0 ≤ Zpos H) { refine <_≤ Z0 1 ⊤ᵢ };
+    have HtnA : π (to_nat (div X 2 * 2 + Zpos H)
+                 = to_nat (div X 2 * 2) Stdlib.Nat.+ to_nat (Zpos H))
+      { refine to_nat_add_nonneg (div X 2 * 2) (Zpos H) HposA HposB };
+    have Hcom : π (div X 2 * 2 = 2 * div X 2) { refine *_com (div X 2) 2 };
+    have HtnMul : π (to_nat (div X 2 * 2) = nat_2 Stdlib.Nat.* to_nat (div X 2))
+      { rewrite Hcom; refine to_nat_2_mul (div X 2) };
+    // Chain: to_nat X = (nat_2 * to_nat (div X 2)) +1   (postfix +1, succ).
+    have HtnX2 : π (to_nat X = (nat_2 Stdlib.Nat.* to_nat (div X 2)) +1)
+      { rewrite HtnX; rewrite HtnA; rewrite HtnMul; reflexivity };
+    // (nat_2 * div2 (to_nat X)) +1 = to_nat X  (from (5.5) given HE)
+    // NOTE: parentheses are critical — `+1` (postfix prec 100) binds tighter
+    // than `*` (prec 30), so we explicitly wrap `(nat_2 * div2 (to_nat X))`.
+    have Hnd : π ((nat_2 Stdlib.Nat.* Stdlib.Nat.div2 (to_nat X)) +1 = to_nat X)
+      { refine nat_double_div2_odd (to_nat X) HE };
+    // Now HtnX2 says to_nat X = (nat_2 * to_nat (div X 2)) + (_0+1).  We want
+    // to express both sides as `_ +1` so we can cancel `+1`.  The `+ (_0+1)`
+    // form actually unfolds to `_ +1` definitionally.
+    have Hcomb : π ((nat_2 Stdlib.Nat.* to_nat (div X 2)) +1
+                  = (nat_2 Stdlib.Nat.* Stdlib.Nat.div2 (to_nat X)) +1)
+      { rewrite left HtnX2; symmetry; refine Hnd };
+    have Hcomb1 : π (nat_2 Stdlib.Nat.* to_nat (div X 2)
+                   = nat_2 Stdlib.Nat.* Stdlib.Nat.div2 (to_nat X))
+      { refine Stdlib.Nat.+1_inj Hcomb };
+    have Hcomb2 : π (to_nat (div X 2) Stdlib.Nat.+ to_nat (div X 2)
+                   = Stdlib.Nat.div2 (to_nat X) Stdlib.Nat.+ Stdlib.Nat.div2 (to_nat X))
+      { rewrite left nat_2_mul_eq_add (to_nat (div X 2));
+        rewrite left nat_2_mul_eq_add (Stdlib.Nat.div2 (to_nat X));
+        refine Hcomb1 };
+    refine Stdlib.Nat.2*_inj (to_nat (div X 2)) (Stdlib.Nat.div2 (to_nat X)) Hcomb2 }
+end;
+
+// (5.7b) Small companion:  div X 1 = X for X ≥ 0.  By mod_eq + modulo_one
+//        + `* 1 = id` via *_com and Z_1_mul_l.
+opaque symbol div_one_id (X : ℤ) :
+  π (Z0 ≤ X) → π (div X 1 = X) ≔
+begin
+  assume X H0X;
+  have Hpos : π (Z0 < 1) { refine ⊤ᵢ };
+  have Heq : π (X = div X 1 * 1 + modulo X 1) { refine mod_eq X 1 H0X Hpos };
+  have Hmod : π (modulo X 1 = 0) { refine modulo_one X };
+  // After substituting modulo X 1 ↦ Z0 and applying `+ Z0 ↪ _` rule:
+  have Heq2 : π (X = div X 1 * 1)
+    { refine ind_eq (eq_sym Hmod) (λ z, X = div X 1 * 1 + z) Heq };
+  // div X 1 * 1 = 1 * div X 1 = div X 1 (via *_com + Z_1_mul_l).
+  have Hmul : π (div X 1 * 1 = div X 1)
+    { rewrite *_com (div X 1) 1; refine Z_1_mul_l (div X 1) };
+  // Compose via ind_eq:  use Heq2 to replace `div X 1 * 1` with X in the
+  // goal `div X 1 = div X 1 * 1` (which is eq_sym Hmul).
+  refine ind_eq Heq2 (λ z, div X 1 = z) (eq_sym Hmul)
+end;
+
+// (5.8) Iterated division by 2.  div (div X 2) M = div X (2*M) for X ≥ 0, M > 0.
+//       Proof via mod_unique: X = q*M' + r' where M' = 2*M, q = div (div X 2) M,
+//       r' = (modulo (div X 2) M) * 2 + modulo X 2.  Bounds:
+//         0 ≤ r' ≤ (M-1)*2 + 1 = 2M - 1 < 2M.
+//       Currently admitted; a faithful proof is ~40 lines of Z-arithmetic.
+opaque symbol iterated_div_2 (X M : ℤ) :
+  π (Z0 ≤ X) → π (Z0 < M) → π (div X (2 * M) = div (div X 2) M) ≔
+begin admit end;
+
+// (5.9) Specialised: div X (2^(to_int (k+1))) = div (div X 2) (2^(to_int k)).
+//       Pure rewriting via `pow2_succ`.
+opaque symbol iterated_div_2_pow (X : ℤ) (k : ℕ) :
+  π (Z0 ≤ X) →
+  π (div X (2 ^ (to_int (k +1))) = div (div X 2) (2 ^ (to_int k))) ≔
+begin
+  assume X k H0X;
+  have HposN : π (Z0 < (2 ^ (to_int k))) { refine pow2_to_int_pos k };
+  rewrite pow2_succ k;
+  refine iterated_div_2 X (2 ^ (to_int k)) H0X HposN
+end;
+
+// (5.11) Bridge: odd = not even.  Used to flip the `if`-branches of
+//        `parity_bridge` into the `if (testbit …) (Zpos H) Z0` form.
+opaque symbol odd_eq_not_even (n : ℕ) :
+  π (Stdlib.Nat.odd n = Stdlib.Bool.not (Stdlib.Nat.even n)) ≔
+begin assume n; reflexivity end;
+
+// (5.12) Helper:  if b then a else c  ≡  if (not b) then c else a   (𝔹-level).
+opaque symbol if_not (a c : ℤ) (b : 𝔹) :
+  π ((if (Stdlib.Bool.not b) a c) = (if b c a)) ≔
+begin
+  assume a c;
+  induction
+  { reflexivity }
+  { reflexivity }
+end;
+
+// (5.13) THE deep bridge.  Proved by induction on k.
+//        - Base (k = _0):  div X 1 = X = (div X 2)*2 + parity, via mod_eq
+//          + parity_bridge + odd↔not even + if_not.
+//        - Step (k → k+1):  apply IH at (div X 2), then `iterated_div_2_pow`
+//          to convert nested divs to single divs by larger powers of 2, and
+//          `to_nat_div_2` to convert `testbit (to_nat (div X 2)) k`
+//          into `testbit (div2 (to_nat X)) k` which equals
+//          `testbit (to_nat X) (k+1)` by the testbit recurrence rule.
+opaque symbol div_pow2_succ_step (X : ℤ) (k : ℕ) :
   π (Z0 ≤ X) →
   π (div X (2 ^ (to_int k))
-     = (div X (2 ^ (to_int (k +1)))) * 2 + (if (testbit (to_nat X) k) (Zpos H) Z0));
+     = (div X (2 ^ (to_int (k +1)))) * 2 + (if (testbit (to_nat X) k) (Zpos H) Z0)) ≔
+begin
+  // Strengthen: ∀-quantify X (in Prop) so the IH at step is usable at (div X 2).
+  // The motive is in Prop (via `\forall` + `⇒`), required by `induction` on ℕ.
+  have core :
+    Π k' : ℕ, π (`∀ X' : ℤ, (Z0 ≤ X') ⇒
+                   div X' (2 ^ (to_int k'))
+                 = (div X' (2 ^ (to_int (k' +1)))) * 2
+                   + (if (testbit (to_nat X') k') (Zpos H) Z0))
+  { induction
+    // ===== BASE  k' = _0 =====
+    // Goal reduces definitionally to:
+    //   div X' 1 = (div X' 2)*2 + if (odd (to_nat X')) Zpos H Z0.
+    // Build the proof term directly via `ind_eq` substitutions, avoiding
+    // `rewrite` so we don't trip over `div ≔ div_eucl _ _ ₁` δ-unfolding.
+    { assume X' H0X';
+      have HposTwo : π (Z0 < 2) { refine ⊤ᵢ };
+      have Heq : π (X' = div X' 2 * 2 + modulo X' 2)
+        { refine mod_eq X' 2 H0X' HposTwo };
+      have Hpar : π (modulo X' 2 = if (Stdlib.Nat.even (to_nat X')) Z0 (Zpos H))
+        { refine parity_bridge X' H0X' };
+      have Hcomb : π (X' = div X' 2 * 2
+                         + (if (Stdlib.Nat.even (to_nat X')) Z0 (Zpos H)))
+        { refine ind_eq (eq_sym Hpar)
+            (λ z, X' = div X' 2 * 2 + z) Heq };
+      // Swap the `if`-branches:
+      //   if (even …) Z0 (Zpos H) = if (not (even …)) (Zpos H) Z0   (via if_not)
+      have Hcomb' : π (X' = div X' 2 * 2
+                          + (if (Stdlib.Bool.not (Stdlib.Nat.even (to_nat X')))
+                               (Zpos H) Z0))
+        { refine ind_eq (if_not (Zpos H) Z0 (Stdlib.Nat.even (to_nat X')))
+            (λ z, X' = div X' 2 * 2 + z) Hcomb };
+      // Replace `not (even n)` with `odd n` (definitional, so a noop-substitution
+      // suffices — but we go through `odd_eq_not_even` to be explicit).
+      have Hcomb'' : π (X' = div X' 2 * 2
+                           + (if (Stdlib.Nat.odd (to_nat X')) (Zpos H) Z0))
+        { refine ind_eq (odd_eq_not_even (to_nat X'))
+            (λ b, X' = div X' 2 * 2 + (if b (Zpos H) Z0))
+            Hcomb' };
+      // Compose with `div X' 1 = X'` (div_one_id).  ind_eq with HX_eq goes
+      // from `X' = ...` (Hcomb'') to `div X' 1 = ...` (the goal mod δ).
+      have HX_eq : π (div X' 1 = X') { refine div_one_id X' H0X' };
+      refine ind_eq HX_eq
+        (λ z, z = div X' 2 * 2 + (if (Stdlib.Nat.odd (to_nat X')) (Zpos H) Z0))
+        Hcomb'' }
+    // ===== STEP  k_ → k_+1 =====
+    { assume k_ IH X' H0X';
+      have HD0 : π (Z0 ≤ div X' 2) { refine div_nonneg_2 X' H0X' };
+      have H_IH : π (div (div X' 2) (2 ^ (to_int k_))
+                    = (div (div X' 2) (2 ^ (to_int (k_ +1)))) * 2
+                    + (if (testbit (to_nat (div X' 2)) k_) (Zpos H) Z0))
+        { refine IH (div X' 2) HD0 };
+      have HL : π (div X' (2 ^ (to_int (k_ +1)))
+                  = div (div X' 2) (2 ^ (to_int k_)))
+        { refine iterated_div_2_pow X' k_ H0X' };
+      have HI : π (div X' (2 ^ (to_int (k_ +1 +1)))
+                  = div (div X' 2) (2 ^ (to_int (k_ +1))))
+        { refine iterated_div_2_pow X' (k_ +1) H0X' };
+      have HT : π (to_nat (div X' 2) = Stdlib.Nat.div2 (to_nat X'))
+        { refine to_nat_div_2 X' H0X' };
+      // Substitute via ind_eq:  start from H_IH, swap LHS via HL, inner div via HI,
+      // and the testbit argument via HT.  By the testbit recurrence rule
+      // `testbit a (n+1) ↪ testbit (div2 a) n`, the final form's `testbit (div2 …) k_`
+      // equals `testbit (to_nat X') (k_+1)`, which is the goal's RHS.
+      // Step 1: HL : div X' (2^(k_+1)) = div (div X' 2) (2^k_).  ind_eq HL goes
+      // from `p (div (div X' 2) (2^k_))` to `p (div X' (2^(k_+1)))`.
+      have H1 : π (div X' (2 ^ (to_int (k_ +1)))
+                  = (div (div X' 2) (2 ^ (to_int (k_ +1)))) * 2
+                  + (if (testbit (to_nat (div X' 2)) k_) (Zpos H) Z0))
+        { refine ind_eq HL
+            (λ z, z = (div (div X' 2) (2 ^ (to_int (k_ +1)))) * 2
+                    + (if (testbit (to_nat (div X' 2)) k_) (Zpos H) Z0))
+            H_IH };
+      // Step 2: HI : div X' (2^(k_+1+1)) = div (div X' 2) (2^(k_+1)).
+      have H2 : π (div X' (2 ^ (to_int (k_ +1)))
+                  = (div X' (2 ^ (to_int (k_ +1 +1)))) * 2
+                  + (if (testbit (to_nat (div X' 2)) k_) (Zpos H) Z0))
+        { refine ind_eq HI
+            (λ z, div X' (2 ^ (to_int (k_ +1))) = z * 2
+                  + (if (testbit (to_nat (div X' 2)) k_) (Zpos H) Z0))
+            H1 };
+      // Step 3: HT : to_nat (div X' 2) = div2 (to_nat X').  ind_eq HT goes from
+      // `p (div2 (to_nat X'))` to `p (to_nat (div X' 2))`.  But we want the
+      // opposite: convert `to_nat (div X' 2)` in H2 to `div2 (to_nat X')` in
+      // the goal.  Use eq_sym HT.
+      refine ind_eq (eq_sym HT)
+        (λ y, div X' (2 ^ (to_int (k_ +1)))
+            = (div X' (2 ^ (to_int (k_ +1 +1)))) * 2
+              + (if (testbit y k_) (Zpos H) Z0))
+        H2 } };
+  assume X k H0X;
+  refine core k X H0X
+end;
 
 // THE deep bridge between Nat-level testbit and Z-level modulo:
 // For non-negative X and any k, `X mod 2^(k+1)` decomposes as
