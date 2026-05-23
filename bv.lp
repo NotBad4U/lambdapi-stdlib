@@ -32,8 +32,6 @@ symbol mkbv (n :τ nat) : τ int → BV n;
 
 rule (mkbv $n $x) ↪ MVBV $n (modulo $x (2 ^ (to_int $n)));
 
-type 5;
-
 compute (mkbv (to_nat 5) 50); // should compute to MVBV 4 2, since 10 mod 16 is 2
 
 // ----------------------------------------------------------------------
@@ -1708,17 +1706,114 @@ begin
     refine Stdlib.Eq.feq (λ x : ℕ, (x +1) +1) (IH He) }
 end;
 
+// (5.6a-pre1) z * M = 0 with M > 0 implies z = 0.  Case on z.
+opaque symbol Z_mul_pos_zero_iff (z M : ℤ) :
+  π (Z0 < M) → π (z * M = Z0) → π (z = Z0) ≔
+begin
+  induction
+  // z = Z0
+  { assume M HposM Heq; reflexivity }
+  // z = Zpos p: M ≤ Zpos p * M = 0 contradicts 0 < M.
+  { assume p M HposM Heq;
+    have HMle : π (M ≤ Zpos p * M) { refine Zpos_mul_ge_M p M HposM };
+    have HMle0 : π (M ≤ Z0) { refine ind_eq (eq_sym Heq) (λ z, M ≤ z) HMle };
+    refine ⊥ₑ (<_neg_≤ Z0 M HposM HMle0) }
+  // z = Zneg p: 0 = Zneg p * M ≤ —M, but —M < 0.
+  { assume p M HposM Heq;
+    have Hle : π (Zneg p * M ≤ — M) { refine Zneg_mul_le_neg_M p M HposM };
+    have H0le : π (Z0 ≤ — M) { refine ind_eq (eq_sym Heq) (λ z, z ≤ — M) Hle };
+    have HMgt0 : π (M > Z0) { refine ∧ₑ₁ (<_> Z0 M) HposM };
+    have HnegMlt0 : π (— M < — Z0) { refine ∧ₑ₁ (opp_lt_mono M Z0) HMgt0 };
+    refine ⊥ₑ (<_neg_≤ (— M) Z0 HnegMlt0 H0le) }
+end;
+
+// (5.6a-pre2) Right cancellation by a positive: a*M = b*M ∧ 0 < M ⇒ a = b.
+opaque symbol Z_*_cancel_r_pos (a b M : ℤ) :
+  π (Z0 < M) → π (a * M = b * M) → π (a = b) ≔
+begin
+  assume a b M HposM Heq;
+  // (a + —b) * M = a*M + —(b*M) = b*M + —(b*M) = 0
+  have Hdistr : π ((a + — b) * M = a * M + (— b) * M)
+    { refine Z_distr_+_r a (— b) M };
+  have Hneg : π ((— b) * M = — (b * M))
+    { symmetry; refine neg_mul_l b M };
+  have Hcancel : π (b * M + — (b * M) = Z0) { refine -_same (b * M) };
+  have HabM_zero : π (a * M + — (b * M) = Z0)
+    { refine ind_eq Heq (λ z, z + — (b * M) = Z0) Hcancel };
+  have H_full : π ((a + — b) * M = Z0)
+    { rewrite Hdistr; rewrite Hneg; refine HabM_zero };
+  have Hab_zero : π (a + — b = Z0)
+    { refine Z_mul_pos_zero_iff (a + — b) M HposM H_full };
+  refine cancel_sub a b Hab_zero
+end;
+
+// (5.6a-pre3) Generic helper: if X ≥ 0 = q*2 + r with 0 ≤ r < 2, then q ≥ 0.
+//             Proof: induction on q.  The Zneg case contradicts X ≥ 0 by
+//             bounding q*2 ≤ —2 and r ≤ 1, hence q*2 + r ≤ —1 < 0.
+opaque symbol nonneg_decomp_implies_q_nonneg (q X r : ℤ) :
+  π (Z0 ≤ X) → π (Z0 ≤ r) → π (r < 2) → π (X = q * 2 + r) → π (Z0 ≤ q) ≔
+begin
+  induction
+  // q = Z0: 0 ≤ 0 trivially.
+  { assume X r H0X H0r HrM Heq Hgt; refine Hgt }
+  // q = Zpos p: 0 ≤ Zpos p trivially.
+  { assume p X r H0X H0r HrM Heq Hgt; refine Hgt }
+  // q = Zneg p: contradiction with H0X.
+  { assume p X r H0X H0r HrM Heq Hgt;
+    have Hpos2 : π (Z0 < 2) { refine ⊤ᵢ };
+    have Hle : π (Zneg p * 2 ≤ — 2) { refine Zneg_mul_le_neg_M p 2 Hpos2 };
+    // r < 2 → r + (Zneg p * 2) < 2 + (Zneg p * 2)
+    have Hlt1 : π (r + (Zneg p * 2) < 2 + (Zneg p * 2))
+      { refine <_compat_add r 2 (Zneg p * 2) HrM };
+    // Zneg p * 2 + 2 ≤ —2 + 2
+    have Hle2 : π ((Zneg p * 2) + 2 ≤ (— 2) + 2)
+      { refine ≤_compat_add (Zneg p * 2) (— 2) 2 Hle };
+    // —2 + 2 = 0
+    have Hzero : π ((— 2) + 2 = Z0)
+      { rewrite +_com (— 2) 2; refine -_same 2 };
+    have Hle3 : π ((Zneg p * 2) + 2 ≤ Z0)
+      { refine ind_eq (eq_sym Hzero) (λ z, (Zneg p * 2) + 2 ≤ z) Hle2 };
+    have Hle4 : π (2 + (Zneg p * 2) ≤ Z0)
+      { refine ind_eq (eq_sym (+_com (Zneg p * 2) 2)) (λ z, z ≤ Z0) Hle3 };
+    have Hlt2 : π (r + (Zneg p * 2) < Z0)
+      { refine <_trans_1 (r + (Zneg p * 2)) (2 + (Zneg p * 2)) Z0 Hlt1 Hle4 };
+    have Hlt3 : π ((Zneg p * 2) + r < Z0)
+      { refine ind_eq (eq_sym (+_com r (Zneg p * 2))) (λ z, z < Z0) Hlt2 };
+    have HXlt0 : π (X < Z0)
+      { refine ind_eq Heq (λ z, z < Z0) Hlt3 };
+    refine <_neg_≤ X Z0 HXlt0 H0X }
+end;
+
 // (5.6a) Nonneg dividend gives nonneg quotient (specialised to M = 2).
-//        Currently admitted; the structural proof via Pos induction is
-//        blocked by a syntactic mismatch between `_2` (Z's defined symbol)
-//        and `2` (its δ-unfolded form, `Zpos _2`) that lambdapi's `rewrite`
-//        does not bridge automatically after `simplify`.  A working route
-//        would prove it via the contrapositive (assume `div X 2 = Zneg q`
-//        and derive `X < 0` via `Zneg_mul_le_neg_M`), but that requires
-//        additional Z-arithmetic infrastructure.
+//        Direct application of nonneg_decomp_implies_q_nonneg.
 opaque symbol div_nonneg_2 (X : ℤ) :
   π (Z0 ≤ X) → π (Z0 ≤ div X 2) ≔
-begin admit end;
+begin
+  assume X H0X;
+  have Hpos2 : π (Z0 < 2) { refine ⊤ᵢ };
+  have HmodNN : π (Z0 ≤ modulo X 2) { refine mod_nonneg X 2 H0X Hpos2 };
+  have HmodLt : π (modulo X 2 < 2) { refine mod_lt X 2 H0X Hpos2 };
+  have Heq : π (X = div X 2 * 2 + modulo X 2) { refine mod_eq X 2 H0X Hpos2 };
+  refine nonneg_decomp_implies_q_nonneg (div X 2) X (modulo X 2) H0X HmodNN HmodLt Heq
+end;
+
+// (5.6a-post) Quotient uniqueness for Euclidean division.
+//             X = q*M + r, 0 ≤ r < M, M > 0  ⇒  div X M = q.
+opaque symbol div_unique (X q r M : ℤ) :
+  π (Z0 ≤ X) → π (Z0 < M) → π (Z0 ≤ r) → π (r < M) →
+  π (X = q * M + r) → π (div X M = q) ≔
+begin
+  assume X q r M H0X HposM H0r HrM Heq;
+  have HmodEq : π (modulo X M = r) { refine mod_unique X q r M H0X HposM H0r HrM Heq };
+  have Hmod_eq : π (X = div X M * M + modulo X M) { refine mod_eq X M H0X HposM };
+  have HX2 : π (X = div X M * M + r)
+    { refine ind_eq (eq_sym HmodEq) (λ z, X = div X M * M + z) Hmod_eq };
+  have Heq_full : π (div X M * M + r = q * M + r)
+    { refine ind_eq (eq_sym HX2) (λ z, z = q * M + r) Heq };
+  have Heq_mul : π (div X M * M = q * M)
+    { refine +_cancel_r (div X M * M) (q * M) r Heq_full };
+  refine Z_*_cancel_r_pos (div X M) q M HposM Heq_mul
+end;
 
 // (5.6b) Tiny Nat helper:  nat_2 * a = a + a.  Used to cancel a factor of 2
 //       via `Stdlib.Nat.2*_inj`.  After δ-unfolding `nat_2 ↪ _0 +1 +1`
@@ -1858,13 +1953,98 @@ begin
 end;
 
 // (5.8) Iterated division by 2.  div (div X 2) M = div X (2*M) for X ≥ 0, M > 0.
-//       Proof via mod_unique: X = q*M' + r' where M' = 2*M, q = div (div X 2) M,
-//       r' = (modulo (div X 2) M) * 2 + modulo X 2.  Bounds:
-//         0 ≤ r' ≤ (M-1)*2 + 1 = 2M - 1 < 2M.
-//       Currently admitted; a faithful proof is ~40 lines of Z-arithmetic.
+//       Proof via div_unique: X = q*(2*M) + r where q = div (div X 2) M and
+//       r = (modulo (div X 2) M) * 2 + modulo X 2.  Bounds:
+//         0 ≤ r ≤ (M-1)*2 + 1 = 2M - 1 < 2M.
 opaque symbol iterated_div_2 (X M : ℤ) :
   π (Z0 ≤ X) → π (Z0 < M) → π (div X (2 * M) = div (div X 2) M) ≔
-begin admit end;
+begin
+  assume X M H0X HposM;
+  have Hpos2 : π (Z0 < 2) { refine ⊤ᵢ };
+  have H0d2 : π (Z0 ≤ div X 2) { refine div_nonneg_2 X H0X };
+  // 0 < 2*M.
+  have Hpos2M : π (Z0 < 2 * M)
+    { have Hiff : π (Z0 < M ⇔ Z0 * 2 < M * 2) { refine mul_lt_mono_pos_l 2 Hpos2 Z0 M };
+      have H_M2 : π (Z0 * 2 < M * 2) { refine ∧ₑ₁ Hiff HposM };
+      have Heq0 : π (Z0 * 2 = Z0) { refine Z0_*_l 2 };
+      have H1 : π (Z0 < M * 2) { refine ind_eq (eq_sym Heq0) (λ z, z < M * 2) H_M2 };
+      refine ind_eq (eq_sym (*_com M 2)) (λ z, Z0 < z) H1 };
+  // Euclidean decompositions.
+  have HmodX : π (X = div X 2 * 2 + modulo X 2) { refine mod_eq X 2 H0X Hpos2 };
+  have HmodD : π (div X 2 = div (div X 2) M * M + modulo (div X 2) M)
+    { refine mod_eq (div X 2) M H0d2 HposM };
+  // Substitute the second into the first.
+  have HX1 : π (X = (div (div X 2) M * M + modulo (div X 2) M) * 2 + modulo X 2)
+    { refine ind_eq (eq_sym HmodD) (λ z, X = z * 2 + modulo X 2) HmodX };
+  // Goal HX5 is in `a + (b + c)` shape (since + is right-assoc).  Build it by
+  // rewriting backwards: *_com 2 M, then *_assoc, then +_assoc, then Z_distr_+_r.
+  have HX5 : π (X = div (div X 2) M * (2 * M) + (modulo (div X 2) M * 2 + modulo X 2))
+    { // q*(2*M) → q*(M*2) via *_com 2 M : 2*M = M*2.
+      rewrite *_com 2 M;
+      // q*(M*2) → (q*M)*2 via *_assoc q M 2 (rewrite left for RHS→LHS).
+      rewrite left *_assoc (div (div X 2) M) M 2;
+      // a + (b + c) → (a + b) + c via +_assoc (rewrite left for RHS→LHS).
+      rewrite left +_assoc ((div (div X 2) M * M) * 2) (modulo (div X 2) M * 2) (modulo X 2);
+      // (q*M)*2 + r'*2 → (q*M + r')*2 via Z_distr_+_r (rewrite left).
+      rewrite left Z_distr_+_r (div (div X 2) M * M) (modulo (div X 2) M) 2;
+      refine HX1 };
+  // Bounds on r = (modulo (div X 2) M) * 2 + modulo X 2.
+  have HmodDNN : π (Z0 ≤ modulo (div X 2) M) { refine mod_nonneg (div X 2) M H0d2 HposM };
+  have HmodXNN : π (Z0 ≤ modulo X 2) { refine mod_nonneg X 2 H0X Hpos2 };
+  have HmodD_lt : π (modulo (div X 2) M < M) { refine mod_lt (div X 2) M H0d2 HposM };
+  have HmodX_lt : π (modulo X 2 < 2) { refine mod_lt X 2 H0X Hpos2 };
+  // r ≥ 0: (modulo (div X 2) M)*2 ≥ 0 + modulo X 2 ≥ 0.
+  have Hmul_com : π (modulo (div X 2) M * 2 = 2 * modulo (div X 2) M)
+    { refine *_com (modulo (div X 2) M) 2 };
+  have H_2modD_NN : π (Z0 ≤ 2 * modulo (div X 2) M)
+    { refine Z_nonneg_mul_2 (modulo (div X 2) M) HmodDNN };
+  have H_modD2_NN : π (Z0 ≤ modulo (div X 2) M * 2)
+    { refine ind_eq Hmul_com (λ z, Z0 ≤ z) H_2modD_NN };
+  have H_r_NN : π (Z0 ≤ modulo (div X 2) M * 2 + modulo X 2)
+    { refine ≤_compat_≤ (modulo (div X 2) M * 2) (modulo X 2) H_modD2_NN HmodXNN };
+  // r < 2*M.
+  // Step A: modulo (div X 2) M + 1 ≤ M.
+  have HmodD_le : π (modulo (div X 2) M + Zpos H ≤ M)
+    { refine Z_lt_implies_succ_le (modulo (div X 2) M) M HmodD_lt };
+  // Step B: (modulo (div X 2) M + 1) * 2 ≤ M * 2.
+  have HmodD_mul_le : π ((modulo (div X 2) M + Zpos H) * 2 ≤ M * 2)
+    { refine ≤_mul_pos_r (modulo (div X 2) M + Zpos H) M 2 HmodD_le Hpos2 };
+  // Step C: (modulo (div X 2) M + 1) * 2 = (modulo (div X 2) M) * 2 + 2.
+  have Hdistr : π ((modulo (div X 2) M + Zpos H) * 2
+                = (modulo (div X 2) M) * 2 + Zpos H * 2)
+    { refine Z_distr_+_r (modulo (div X 2) M) (Zpos H) 2 };
+  have H_1_mul : π (Zpos H * 2 = 2) { refine Z_1_mul_l 2 };
+  have Hdistr2 : π ((modulo (div X 2) M + Zpos H) * 2
+                 = (modulo (div X 2) M) * 2 + 2)
+    { rewrite Hdistr; rewrite H_1_mul; reflexivity };
+  // Step D: (modulo (div X 2) M) * 2 + 2 ≤ M * 2.
+  have HmodD_mul_le2 : π ((modulo (div X 2) M) * 2 + 2 ≤ M * 2)
+    { refine ind_eq (eq_sym Hdistr2) (λ z, z ≤ M * 2) HmodD_mul_le };
+  // Step E: M*2 → 2*M.
+  have HmodD_mul_le3 : π ((modulo (div X 2) M) * 2 + 2 ≤ 2 * M)
+    { refine ind_eq (eq_sym (*_com M 2))
+        (λ z, (modulo (div X 2) M) * 2 + 2 ≤ z) HmodD_mul_le2 };
+  // Step F: modulo X 2 < 2 → r < (modulo (div X 2) M)*2 + 2.
+  have HmodX_lt_a : π (modulo X 2 + (modulo (div X 2) M) * 2
+                     < 2 + (modulo (div X 2) M) * 2)
+    { refine <_compat_add (modulo X 2) 2 ((modulo (div X 2) M) * 2) HmodX_lt };
+  have HmodX_lt_a2 : π ((modulo (div X 2) M) * 2 + modulo X 2
+                      < 2 + (modulo (div X 2) M) * 2)
+    { refine ind_eq (eq_sym (+_com (modulo X 2) ((modulo (div X 2) M) * 2)))
+        (λ z, z < 2 + (modulo (div X 2) M) * 2) HmodX_lt_a };
+  have HmodX_lt_a3 : π ((modulo (div X 2) M) * 2 + modulo X 2
+                      < (modulo (div X 2) M) * 2 + 2)
+    { refine ind_eq (eq_sym (+_com 2 ((modulo (div X 2) M) * 2)))
+        (λ z, (modulo (div X 2) M) * 2 + modulo X 2 < z) HmodX_lt_a2 };
+  // Step G: combine via <_trans_1.
+  have H_r_lt : π ((modulo (div X 2) M) * 2 + modulo X 2 < 2 * M)
+    { refine <_trans_1 ((modulo (div X 2) M) * 2 + modulo X 2)
+        ((modulo (div X 2) M) * 2 + 2) (2 * M) HmodX_lt_a3 HmodD_mul_le3 };
+  // Apply div_unique.
+  refine div_unique X (div (div X 2) M)
+    ((modulo (div X 2) M) * 2 + modulo X 2) (2 * M)
+    H0X Hpos2M H_r_NN H_r_lt HX5
+end;
 
 // (5.9) Specialised: div X (2^(to_int (k+1))) = div (div X 2) (2^(to_int k)).
 //       Pure rewriting via `pow2_succ`.
@@ -2347,6 +2527,3 @@ compute bvudiv (mkbv (to_nat 4) 12) (mkbv (to_nat 4)  3);  // 12 /  3         = 
 compute bvudiv (mkbv (to_nat 4) 12) (mkbv (to_nat 4)  0);  // SMT-LIB: all-1s = 15
 compute bvurem (mkbv (to_nat 4) 12) (mkbv (to_nat 4)  5);  // 12 mod 5        =  2
 compute bvurem (mkbv (to_nat 4) 12) (mkbv (to_nat 4)  0);  // SMT-LIB: x      = 12
-
-
-
