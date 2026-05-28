@@ -840,3 +840,154 @@ begin
     { assume y; simplify; apply feq (Zneg); refine red_by_Stein_v2_cross x y }
     { assume y; simplify; apply feq (Zpos); refine red_by_Stein_v2_cross x y } }
 end;
+
+// ============================================================
+// PHASE 1 — Divisibility on ℤ:  d ∣ n  ≔  ∃ k, n = d * k.
+// Foundation for the gcd "greatest divisor" / coprimality development.
+
+symbol ∣ : ℤ → ℤ → Prop; notation ∣ infix 10;
+rule $d ∣ $n ↪ `∃ k, $n = $d * k;
+
+opaque symbol div_refl a : π (a ∣ a) ≔
+begin
+  assume a; refine ∃ᵢ 1 _; symmetry; refine *_neutral a
+end;
+
+opaque symbol div_trans a b c : π (a ∣ b) → π (b ∣ c) → π (a ∣ c) ≔
+begin
+  assume a b c hab hbc;
+  refine ∃ₑ hab _; assume i hi;
+  refine ∃ₑ hbc _; assume j hj;
+  refine ∃ᵢ (i * j) _;
+  rewrite hj; rewrite hi; rewrite *_assoc; reflexivity
+end;
+
+// z divides a unit ⟹ z divides anything.
+opaque symbol div_of_unit z a : π (z ∣ 1) → π (z ∣ a) ≔
+begin
+  assume z a hz;
+  refine ∃ₑ hz _; assume k hk;
+  refine ∃ᵢ (a * k) _;
+  rewrite *_com z (a * k);
+  rewrite *_assoc a k z;
+  rewrite *_com k z;
+  rewrite left hk;
+  symmetry; refine *_neutral a
+end;
+
+opaque symbol div_add z a b : π (z ∣ a) → π (z ∣ b) → π (z ∣ (a + b)) ≔
+begin
+  assume z a b ha hb;
+  refine ∃ₑ ha _; assume i hi;
+  refine ∃ₑ hb _; assume j hj;
+  refine ∃ᵢ (i + j) _;
+  rewrite *_distr_+; rewrite left hi; rewrite left hj; reflexivity
+end;
+
+// z ∣ a and z ∣ (a+b)  ⟹  z ∣ b.
+opaque symbol div_add_cancel z a b : π (z ∣ a) → π (z ∣ (a + b)) → π (z ∣ b) ≔
+begin
+  assume z a b ha hab;
+  refine ∃ₑ ha _; assume i hi;
+  refine ∃ₑ hab _; assume j hj;
+  refine ∃ᵢ (j + — i) _;
+  rewrite *_distr_+;
+  rewrite left neg_mul_r;
+  rewrite left hi;
+  rewrite left hj;
+  rewrite +_com a b;
+  rewrite +_assoc;
+  rewrite -_same;
+  reflexivity
+end;
+
+opaque symbol div_mul_r z a c : π (z ∣ a) → π (z ∣ (a * c)) ≔
+begin
+  assume z a c ha;
+  refine ∃ₑ ha _; assume i hi;
+  refine ∃ᵢ (i * c) _;
+  rewrite hi; rewrite *_assoc; reflexivity
+end;
+
+// Cancel a common factor of 2:  (2·u) ∣ (2·v)  ⟹  u ∣ v.
+opaque symbol cancel2 u v : π ((2 * u) ∣ (2 * v)) → π (u ∣ v) ≔
+begin
+  assume u v h;
+  refine ∃ₑ h _; assume k hk;
+  refine ∃ᵢ k _;
+  refine *_reg_r v (u * k) 2 _ _
+  { refine Zpos≠Z0 (O H) }
+  { rewrite *_com v 2;
+    rewrite hk;
+    rewrite *_com (u * k) 2;
+    rewrite *_assoc;
+    reflexivity }
+end;
+
+// ============================================================
+// PHASE 2a — ℙ↔ℤ divisibility for positives, and the factor-2 Euclid step.
+
+symbol unZpos : ℤ → ℙ;
+rule unZpos (Zpos $p) ↪ $p
+with unZpos Z0 ↪ H
+with unZpos (Zneg $p) ↪ $p;
+
+opaque symbol Zpos_inj m m' : π (Zpos m = Zpos m') → π (m = m') ≔
+begin
+  assume m m' h; refine feq unZpos h
+end;
+
+// Divisibility of positives is the same as ℙ-level multiplicative divisibility.
+opaque symbol divp_intro p m k : π (m = mul p k) → π (Zpos p ∣ Zpos m) ≔
+begin
+  assume p m k h; refine ∃ᵢ (Zpos k) _; rewrite h; reflexivity
+end;
+
+opaque symbol divp_elim p m : π (Zpos p ∣ Zpos m) → π (`∃ k, m = mul p k) ≔
+begin
+  assume p m h;
+  refine ∃ₑ h _;
+  induction
+  // k = Z0
+  { assume hk; apply ⊥ₑ; refine Zpos≠Z0 m hk }
+  // k = Zpos k'
+  { assume k' hk; refine ∃ᵢ k' _; refine Zpos_inj m (mul p k') hk }
+  // k = Zneg k'
+  { assume k' hk; apply ⊥ₑ; refine Zpos≠Zneg m (mul p k') hk }
+end;
+
+// Factor-2 Euclid: an odd divisor of an even number divides its half.
+opaque symbol eucl2_I q a : π (Zpos (I q) ∣ Zpos (O a)) → π (Zpos (I q) ∣ Zpos a) ≔
+begin
+  assume q a h;
+  have he : π (`∃ k, O a = mul (I q) k) { refine divp_elim (I q) (O a) h };
+  refine ∃ₑ he _;
+  induction
+  // k = I k': mul (I q) (I k') is odd, contradicting O a
+  { assume k' IH hk;
+    apply ⊥ₑ;
+    have hc : π (I (add q (mul (I q) k')) = O a)
+      { symmetry; rewrite hk; rewrite mul_xI_r; reflexivity };
+    refine I≠O hc }
+  // k = O k': O a = O (mul (I q) k') ⟹ a = mul (I q) k'
+  { assume k' IH hk;
+    refine divp_intro (I q) a k' _;
+    refine O_inj a (mul (I q) k') _;
+    rewrite hk; rewrite mul_x0_r; reflexivity }
+  // k = H: O a = I q, impossible
+  { assume hk;
+    apply ⊥ₑ;
+    have hc : π (I q = O a) { symmetry; rewrite hk; reflexivity };
+    refine I≠O hc }
+end;
+
+// An even number cannot divide an odd number.
+opaque symbol even_div_odd_false q a : π (Zpos (O q) ∣ Zpos (I a)) → π ⊥ ≔
+begin
+  assume q a h;
+  have he : π (`∃ k, I a = mul (O q) k) { refine divp_elim (O q) (I a) h };
+  refine ∃ₑ he _;
+  assume k hk;
+  have hc : π (I a = O (mul q k)) { rewrite hk; reflexivity };
+  refine I≠O hc
+end;
