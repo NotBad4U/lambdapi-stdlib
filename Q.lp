@@ -208,10 +208,10 @@ end;
 // normalization respects rational equality. Postulated; their full
 // proof from the binary Stein algorithm in Zgcd.lp requires substantial
 // divisibility/coprimality lemmas and is left for future work.
-
-// (1) Cross-product of GCD reduction:
-//     Z_red_Stein a b = a / gcd(a,b), so (a/g) * b = a * (b/g).
-symbol Z_red_Stein_cross a b : π (Z_red_Stein a b * b = a * Z_red_Stein b a);
+//
+// (1) Cross-product of GCD reduction is now DISCHARGED: it is exactly
+//     Z_red_Stein_correct, proved in Zgcd.lp from the fuel-based ggcd
+//     (ggcd_fuel_correct + ggcd_fuel_sym). Used below via that name.
 
 // (2) Standard cross-multiplication characterization of rational equality.
 //     For nonzero b, d: frac a b = frac c d iff a*d = c*b.
@@ -229,7 +229,7 @@ opaque symbol frac_red_cross b A :
 begin
     assume b A;
     rewrite *_assoc;
-    rewrite Z_red_Stein_cross;
+    rewrite Z_red_Stein_correct;
     rewrite left *_assoc;
     rewrite *_com (sign b) A;
     rewrite *_assoc;
@@ -269,7 +269,7 @@ begin
         { refine frac_red_cross (d1 * d2) ((n1 * d2) + (n2 * d1)) };
     have R2 : π (N23 * (d2 * d3) = ((n2 * d3) + (n3 * d2)) * D23)
         { refine frac_red_cross (d2 * d3) ((n2 * d3) + (n3 * d2)) };
-    refine *_reg_r _ _ d2 _;
+    refine *_reg_r _ _ d2 hd2 _;
     // After *_reg_r the goal is
     //   ((N12·d3 + n3·D12)·(d1·D23))·d2 = ((n1·D23 + N23·d1)·(D12·d3))·d2.
     // We distribute both sums and the trailing d2:
@@ -364,7 +364,7 @@ begin
 end;
 
 
-symbol ᵣ+_com x y :  π (x ᵣ+ y = y ᵣ+  x) ≔
+opaque symbol ᵣ+_com x y :  π (x ᵣ+ y = y ᵣ+  x) ≔
 begin
     refine ind_Rat (λ u, `∀ y, (u ᵣ+ y) = (y ᵣ+ u)) _;
     assume n1 d1;
@@ -378,7 +378,7 @@ begin
     refine ᵣ+_com_div N1 D1 N2 D2
 end;
 
-symbol ᵣ*_com x y :  π (x *ᵣ y = y *ᵣ x) ≔
+opaque symbol ᵣ*_com x y :  π (x *ᵣ y = y *ᵣ x) ≔
 begin
     refine ind_Rat (λ u, `∀ y, (u *ᵣ y) = (y *ᵣ u)) _;
     assume n1 d1;
@@ -402,69 +402,144 @@ begin
   induction {reflexivity} {reflexivity} {reflexivity}
 end;
 
-opaque symbol div_add_neutral_l n d : π ((0 / 1 ᵣ+ n / d) = n / d) ≔
+// Left/right neutrality stated with the raw constructor (Zpos H) rather than
+// the `1` symbol, so `rewrite` matches the `Zpos H` factors produced by sign
+// reduction (sign (Zpos _) ↪ Zpos H) inside normalized fractions.
+opaque symbol mul1_l z : π (Zpos H * z = z) ≔
 begin
-assume n1 d1;
-simplify;
-change π ((sign (_1 * d1) * Z_red_Stein (n1 * _1) (_1 * d1)) / (sign (1 * d1) * Z_red_Stein (_1 * d1) (n1 * _1)) = (n1 / d1));
-rewrite *_neutral_l;
-rewrite *_neutral;
-admit
+  induction {reflexivity} {reflexivity} {reflexivity}
 end;
 
-opaque symbol div_add_neutral_r n d : π ((n / d ᵣ+ 0 / 1) = n / d) ≔
+opaque symbol mul1_r z : π (z * Zpos H = z) ≔
 begin
-admitted;
+  induction {reflexivity} {reflexivity} {reflexivity}
+end;
+
+// Multiplication by Zneg H (= -1) is negation; needed for the Zneg-sign branch
+// where sign (Zneg _) ↪ Zneg H appears as a factor.
+opaque symbol mulm1_l z : π (Zneg H * z = — z) ≔
+begin
+  induction {reflexivity} {reflexivity} {reflexivity}
+end;
+
+// NOTE: stated with `frac n d` on the RHS, not raw `n / d`. Addition normalizes
+// its result (frac reduces to lowest terms), so `0/1 ᵣ+ n/d` equals the
+// *normalized* fraction `frac n d`. The raw form `= n / d` is FALSE for
+// non-reduced inputs (e.g. n=2, d=4 gives 1/2 ≠ 2/4).
+opaque symbol div_add_neutral_l n d : π ((0 / 1 ᵣ+ n / d) = frac n d) ≔
+begin
+  assume n;
+  induction
+  { reflexivity }
+  { assume p;
+    refine frac_eq ((0 * Zpos p) + (n * 1)) (1 * Zpos p) n (Zpos p) _ _ _
+    { refine mul_ne_0 1 (Zpos p) (Zpos≠Z0 H) (Zpos≠Z0 p) }
+    { refine Zpos≠Z0 p }
+    { rewrite *_cancel_l;
+      rewrite *_neutral;
+      rewrite *_neutral_l;
+      reflexivity } }
+  { assume p;
+    refine frac_eq ((0 * Zneg p) + (n * 1)) (1 * Zneg p) n (Zneg p) _ _ _
+    { refine mul_ne_0 1 (Zneg p) (Zpos≠Z0 H) (Zneg≠Z0 p) }
+    { refine Zneg≠Z0 p }
+    { rewrite *_cancel_l;
+      rewrite *_neutral;
+      rewrite *_neutral_l;
+      reflexivity } }
+end;
+
+// Restated with `frac n d` on the RHS for the same reason as div_add_neutral_l.
+opaque symbol div_add_neutral_r n d : π ((n / d ᵣ+ 0 / 1) = frac n d) ≔
+begin
+  assume n;
+  induction
+  { reflexivity }
+  { assume p;
+    refine frac_eq ((n * 1) + (0 * Zpos p)) (Zpos p * 1) n (Zpos p) _ _ _
+    { refine mul_ne_0 (Zpos p) 1 (Zpos≠Z0 p) (Zpos≠Z0 H) }
+    { refine Zpos≠Z0 p }
+    { rewrite *_cancel_l;
+      rewrite *_neutral;
+      rewrite *_neutral;
+      reflexivity } }
+  { assume p;
+    refine frac_eq ((n * 1) + (0 * Zneg p)) (Zneg p * 1) n (Zneg p) _ _ _
+    { refine mul_ne_0 (Zneg p) 1 (Zneg≠Z0 p) (Zpos≠Z0 H) }
+    { refine Zneg≠Z0 p }
+    { rewrite *_cancel_l;
+      rewrite *_neutral;
+      rewrite *_neutral;
+      reflexivity } }
+end;
 
 opaque symbol ᵣ+_neutral_frac_l x : π ((frac 0 1 ᵣ+ x) = x) ≔
 begin
-    refine ind_Rat (λ u, ((frac 0 _1 ᵣ+ u) = u)) _;
-    assume n d;
-    simplify;
-    set N ≔ (sign d * Z_red_Stein n d);
-    set D ≔ (sign d * Z_red_Stein d n);
-    change  π (((sign (_1 * D) * Z_red_Stein (N * _1) (_1 * D)) / (sign (_1 * D) * Z_red_Stein (_1 * D) (N * _1))) = (N / D));
-    rewrite *_neutral_l;
-    rewrite *_neutral;
-    have HD: π (sign D = 1 ∨ sign D = — 1) { refine sign_case D };
-    have Hd: π (sign d = 1 ∨ sign d = — 1) { refine sign_case d };
-    apply ∨ₑ HD
-    {
-        assume heq; rewrite heq;
-        apply ∨ₑ Hd
-        {
-            assume heq2;
-            admit
-        }
-        {admit}
-    }
-    {admit}
+  refine ind_Rat (λ u, ((frac 0 1 ᵣ+ u) = u)) _;
+  assume n;
+  induction
+  { reflexivity }
+  { assume p;
+    set N ≔ sign (Zpos p) * Z_red_Stein n (Zpos p);
+    set D ≔ sign (Zpos p) * Z_red_Stein (Zpos p) n;
+    refine frac_eq ((0 * D) + (N * 1)) (1 * D) n (Zpos p) _ _ _
+    { refine mul_ne_0 1 D (Zpos≠Z0 H)
+        (mul_ne_0 (sign (Zpos p)) (Z_red_Stein (Zpos p) n)
+           (sign_ne_0 (Zpos p) (Zpos≠Z0 p))
+           (Z_red_Stein_l_ne_0 (Zpos p) n (Zpos≠Z0 p))) }
+    { refine Zpos≠Z0 p }
+    { simplify;
+      rewrite mul1_r;
+      rewrite mul1_l;
+      rewrite mul1_l;
+      rewrite mul1_l;
+      refine Z_red_Stein_correct n (Zpos p) } }
+  { assume p;
+    set N ≔ sign (Zneg p) * Z_red_Stein n (Zneg p);
+    set D ≔ sign (Zneg p) * Z_red_Stein (Zneg p) n;
+    refine frac_eq ((0 * D) + (N * 1)) (1 * D) n (Zneg p) _ _ _
+    { refine mul_ne_0 1 D (Zpos≠Z0 H)
+        (mul_ne_0 (sign (Zneg p)) (Z_red_Stein (Zneg p) n)
+           (sign_ne_0 (Zneg p) (Zneg≠Z0 p))
+           (Z_red_Stein_l_ne_0 (Zneg p) n (Zneg≠Z0 p))) }
+    { refine Zneg≠Z0 p }
+    { simplify;
+      rewrite mul1_r;
+      rewrite mul1_l;
+      rewrite mulm1_l;
+      rewrite mulm1_l;
+      rewrite left neg_mul_l;
+      rewrite left neg_mul_r;
+      rewrite Z_red_Stein_correct;
+      reflexivity } }
 end;
 
 opaque symbol ᵣ+_neutral_l x : π ((frac 0 1 ᵣ+ x) = x) ≔
 begin
-admitted;
+  assume x;
+  refine ᵣ+_neutral_frac_l x
+end;
 
 opaque symbol ᵣ+_neutral_r x : π ((x ᵣ+ frac 0 1) = x) ≔
 begin
-admitted;
+  assume x;
+  rewrite (ᵣ+_com x (frac 0 1));
+  refine ᵣ+_neutral_frac_l x
+end;
 
+// `0 / 1` is definitionally `frac 0 1`, so these are the raw-`/` twins of
+// ᵣ+_neutral_l / ᵣ+_neutral_r and close by delegation.
 opaque symbol ᵣ+_neutral_div_l x : π ((0 / 1 ᵣ+ x) = x) ≔
 begin
-    refine ind_Rat (λ u, (((0 / _1) ᵣ+ u) = u)) _;
-    assume x y;
-    simplify ᵣ+;
-    change π (frac ((0 * (sign y * Z_red_Stein y x)) + ((sign y * Z_red_Stein x y) * _1)) (_1 * (sign y * Z_red_Stein y x)) = frac x y);
-    rewrite *_neutral;
-    rewrite *_neutral_l;
-    rewrite *_cancel_l;
-    simplify +;
-    admit
+  assume x;
+  refine ᵣ+_neutral_frac_l x
 end;
 
 opaque symbol ᵣ+_neutral_div_r x : π ((x ᵣ+ 0 / 1) = x) ≔
 begin
-admitted;
+  assume x;
+  refine ᵣ+_neutral_r x
+end;
 
 opaque symbol ᵣ*_neutral_l x : π ((frac 1 1 *ᵣ x) = x) ≔
 begin

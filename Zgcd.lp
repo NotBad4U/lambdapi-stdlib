@@ -1,3 +1,5 @@
+// All definitions inspired by https://rocq-prover.org/doc/v9.0/stdlib/Stdlib.PArith.BinPosDef.html
+
 require open Stdlib.Nat Stdlib.Z Stdlib.Prop Stdlib.Prod;
 
 

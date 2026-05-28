@@ -671,7 +671,7 @@ opaque symbol Z_lt_implies_succ_le (r b : ℤ) :
 begin
   assume r b Hrb;
   refine ∧ₑ₁ (≤_≥ b (r + Zpos H)) _;
-  refine _ax4 b r (<_neg_≤ r b Hrb) Hrb
+  refine >_strengthen b r (∧ₑ₁ (<_> r b) Hrb)
 end;
 
 // r < b → 2*r + 1 < 2*b.  Combines mul_lt_mono with integer-step.
