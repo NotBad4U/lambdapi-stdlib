@@ -1895,7 +1895,13 @@ with $x % ($y +1) ↪ $y - ((divmod $x $y _0 $y) ₂);
 
 opaque symbol mod_lt (x n: ℕ): π (_0 < n) → π (x % n < n) ≔
 begin
-admitted;
+  assume x;
+  induction
+  // n = 0: hypothesis _0 < _0 reduces to ⊥, conclusion reduces to ⊥
+  { simplify; assume h; refine h }
+  // n = n' +1
+  { assume n' IH Hpos; refine leq_subr ((divmod x n' _0 n') ₂) n' }
+end;
 
 opaque symbol modulo_lt [b a n: ℕ]: π (a < n) → π (b % n < n) ≔
 begin

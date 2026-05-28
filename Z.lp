@@ -843,13 +843,56 @@ begin
   }
 end;
 
-opaque symbol mul_distr_sub_neg_l a (x y: ℙ) : π ((Zneg a * sub x y) = sub (mul a y) (mul a x)) ≔
+opaque symbol Zpos_H_mul z : π (Zpos H * z = z) ≔
 begin
-admitted;
+  induction
+  { reflexivity }
+  { assume p; reflexivity }
+  { assume p; reflexivity }
+end;
+
+opaque symbol Zneg_mul a b : π (Zneg a * b = — (Zpos a * b)) ≔
+begin
+  assume a;
+  induction
+  { reflexivity }
+  { assume b; reflexivity }
+  { assume b; reflexivity }
+end;
+
+opaque symbol Zpos_succ_mul a z : π (Zpos (succ a) * z = Zpos a * z + z) ≔
+begin
+  assume a;
+  induction
+  { reflexivity }
+  { assume p; simplify; rewrite left mult_Sn_m; reflexivity }
+  { assume p; simplify; rewrite left mult_Sn_m; reflexivity }
+end;
 
 opaque symbol mul_distr_sub_pos_l a (x y: ℙ) : π ((Zpos a * sub x y) = sub (mul a x) (mul a y)) ≔
 begin
-admitted;
+  assume a x y;
+  refine ind_ℙeano (λ a, `∀ x, `∀ y, Zpos a * sub x y = sub (mul a x) (mul a y)) _ _ a x y
+  { assume x' y'; simplify; rewrite Zpos_H_mul; reflexivity }
+  { assume a' IH x' y';
+    rewrite Zpos_succ_mul;
+    rewrite IH x' y';
+    rewrite left mult_Sn_m a' x';
+    rewrite left mult_Sn_m a' y';
+    rewrite left sub_add_Zneg;
+    rewrite left sub_add_Zpos;
+    rewrite +_assoc;
+    reflexivity }
+end;
+
+opaque symbol mul_distr_sub_neg_l a (x y: ℙ) : π ((Zneg a * sub x y) = sub (mul a y) (mul a x)) ≔
+begin
+  assume a x y;
+  rewrite Zneg_mul;
+  rewrite mul_distr_sub_pos_l;
+  rewrite sub_opp;
+  reflexivity
+end;
 
 opaque symbol *_distr_+ z x y  : π (z * (x + y) = (z * x) + (z * y)) ≔
 begin
@@ -911,30 +954,78 @@ begin
   { assume a; induction { reflexivity } { reflexivity } { reflexivity } }
 end;
 
-//TODO:
-opaque symbol *_reg_r x y k : π (x * k = y * k ⇒ x = y) ≔
+opaque symbol *_zero_l a k : π (k ≠ Z0) → π (a * k = Z0) → π (a = Z0) ≔
 begin
-  assume x y k;
-  admit 
+  induction
+  // a = Z0
+  { assume k Hk Hak; reflexivity }
+  // a = Zpos a'
+  { assume a';
+    induction
+    { assume Hk Hak; apply ⊥ₑ; apply Hk; reflexivity }
+    { assume k' Hk Hak; apply ⊥ₑ; apply Zpos≠Z0 (mul a' k'); apply Hak }
+    { assume k' Hk Hak; apply ⊥ₑ; apply Zneg≠Z0 (mul a' k'); apply Hak }
+  }
+  // a = Zneg a'
+  { assume a';
+    induction
+    { assume Hk Hak; apply ⊥ₑ; apply Hk; reflexivity }
+    { assume k' Hk Hak; apply ⊥ₑ; apply Zneg≠Z0 (mul a' k'); apply Hak }
+    { assume k' Hk Hak; apply ⊥ₑ; apply Zpos≠Z0 (mul a' k'); apply Hak }
+  }
+end;
+
+opaque symbol *_reg_r x y k : π (k ≠ Z0) → π (x * k = y * k ⇒ x = y) ≔
+begin
+  assume x y k Hk Hxyk;
+  apply cancel_sub;
+  apply *_zero_l (x - y) k Hk;
+  simplify;
+  rewrite *_com;
+  rewrite *_distr_+;
+  rewrite left neg_mul_r;
+  rewrite *_com k x;
+  rewrite *_com k y;
+  rewrite Hxyk;
+  rewrite -_same;
+  reflexivity
 end;
 
 symbol lt_ind: Π (A : ℤ → Prop), Π (n : ℤ),
 (π (A (n + (Zpos H))) → π (`∀ m : ℤ, n < m ⇒ A m ⇒ A (m + (Zpos H))))
 → Π (m : ℤ), π (n < m)  → π (A m);
 
-opaque symbol mul_lt_mono_pos_l p : π (Z0 < p) → Π n m, π (n < m ⇔ n * p < m * p) ≔
+opaque symbol *_pos_pos c x : π (c > Z0) → π (x > Z0) → π (c * x > Z0) ≔
 begin
-  assume p h;
-  admit
+  induction
+  // c = Z0
+  { assume x Hc Hx; apply ⊥ₑ; refine Hc (λ y, y) }
+  // c = Zpos c'
+  { assume c';
+    induction
+    { assume Hc Hx; apply ⊥ₑ; refine Hx (λ y, y) }
+    { assume x' Hc Hx h; refine h ⊤ᵢ }
+    { assume x' Hc Hx; apply ⊥ₑ; refine Hx (λ y, y) }
+  }
+  // c = Zneg c'
+  { assume c' x Hc Hx; apply ⊥ₑ; refine Hc (λ y, y) }
 end;
 
-// opaque symbol mult_gt_compat_eq (c a b: ℤ) : π (c > Z0) →  π (a > b) →  π ((c * a) > (c * b)) ≔
-// begin
-//   induction
-//   { simplify >; simplify rule off; assume a b contra h; refine contra; }
-//   { assume c a b hc hab; simplify;  }
-//   {}
-// end;
+opaque symbol *_pos_pos_inv c x : π (c > Z0) → π (c * x > Z0) → π (x > Z0) ≔
+begin
+  induction
+  // c = Z0
+  { assume x Hc Hcx; apply ⊥ₑ; refine Hc (λ y, y) }
+  // c = Zpos c'
+  { assume c';
+    induction
+    { assume Hc Hcx; apply ⊥ₑ; refine Hcx (λ y, y) }
+    { assume x' Hc Hcx h; refine h ⊤ᵢ }
+    { assume x' Hc Hcx; apply ⊥ₑ; refine Hcx (λ y, y) }
+  }
+  // c = Zneg c'
+  { assume c' x Hc Hcx; apply ⊥ₑ; refine Hc (λ y, y) }
+end;
 
 // shortcuts
 
@@ -1174,6 +1265,59 @@ begin
     refine H2;
   };
   refine H3
+end;
+
+opaque symbol mult_gt_compat_eq (c a b: ℤ) : π (c > Z0) →  π (a > b) →  π ((c * a) > (c * b)) ≔
+begin
+  assume c a b Hc Hab;
+  have Hab2: π (a - b > Z0) { refine <_implies_diff_< a b Hab };
+  have Hcab: π (c * (a - b) > Z0) { refine *_pos_pos c (a - b) Hc Hab2 };
+  have Heq: π (c * (a - b) = (c * a) - (c * b)) {
+    simplify;
+    rewrite *_distr_+;
+    rewrite left neg_mul_r;
+    reflexivity
+  };
+  have Hfinal: π ((c * a) - (c * b) > Z0) { rewrite left Heq; refine Hcab };
+  refine diff_>_implies_> (c * a) (c * b) Hfinal
+end;
+
+opaque symbol mul_lt_mono_pos_l p : π (Z0 < p) → Π n m, π (n < m ⇔ n * p < m * p) ≔
+begin
+  assume p Hp n m;
+  have Hp2: π (p > Z0) { refine ∧ₑ₁ (<_> Z0 p) Hp };
+  apply ∧ᵢ
+  {
+    assume Hnm;
+    have Hmn: π (m > n) { refine ∧ₑ₁ (<_> n m) Hnm };
+    have Hpmn: π (p * m > p * n) { refine mult_gt_compat_eq p m n Hp2 Hmn };
+    refine ∧ₑ₂ (<_> (n * p) (m * p)) _;
+    rewrite *_com m p;
+    rewrite *_com n p;
+    refine Hpmn
+  }
+  {
+    assume Hnpmp;
+    have Hmpnp: π (m * p > n * p) { refine ∧ₑ₁ (<_> (n * p) (m * p)) Hnpmp };
+    have Hdiff: π (m * p - n * p > Z0) { refine <_implies_diff_< (m * p) (n * p) Hmpnp };
+    have Heq: π ((m - n) * p = m * p - n * p) {
+      simplify;
+      rewrite *_com (m + — n) p;
+      rewrite *_distr_+;
+      rewrite *_com p m;
+      rewrite *_com p (— n);
+      rewrite left neg_mul_l;
+      reflexivity
+    };
+    have Hdiff2: π ((m - n) * p > Z0) { rewrite Heq; refine Hdiff };
+    have Hdiff3: π (p * (m - n) > Z0) {
+      rewrite *_com p (m - n);
+      refine Hdiff2
+    };
+    have Hmn: π (m - n > Z0) { refine *_pos_pos_inv p (m - n) Hp2 Hdiff3 };
+    have Hmn2: π (m > n) { refine diff_>_implies_> m n Hmn };
+    refine ∧ₑ₂ (<_> n m) Hmn2
+  }
 end;
 
 symbol power_pos (x: ℤ) (p: ℙ) : ℤ;
