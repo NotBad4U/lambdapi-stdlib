@@ -215,12 +215,60 @@ end;
 
 // (2) Standard cross-multiplication characterization of rational equality.
 //     For nonzero b, d: frac a b = frac c d iff a*d = c*b.
-symbol frac_eq a b c d : π (b ≠ 0) → π (d ≠ 0) → π (a * d = c * b) → π (frac a b = frac c d);
+//     NOW PROVEN (see `frac_eq` below, after the supporting lemmas).
+//     Integral-domain helper: c·b = 0 with b ≠ 0 forces c = 0.
+opaque symbol mul_eq_0_l c b : π (c * b = Z0) → π (b ≠ 0) → π (c = Z0) ≔
+begin
+  induction
+  { assume b h hb; reflexivity }
+  { assume pc; induction
+    { assume h hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb h hb; apply ⊥ₑ; refine Zpos≠Z0 (mul pc pb) h }
+    { assume pb h hb; apply ⊥ₑ; refine Zneg≠Z0 (mul pc pb) h } }
+  { assume pc; induction
+    { assume h hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb h hb; apply ⊥ₑ; refine Zneg≠Z0 (mul pc pb) h }
+    { assume pb h hb; apply ⊥ₑ; refine Zpos≠Z0 (mul pc pb) h } }
+end;
 
-// (3) Non-zero preservation lemmas (would normally live in Z.lp / Zgcd.lp).
-symbol mul_ne_0 a b : π (a ≠ 0) → π (b ≠ 0) → π (a * b ≠ 0);
-symbol sign_ne_0 a : π (a ≠ 0) → π (sign a ≠ 0);
-symbol Z_red_Stein_l_ne_0 a b : π (a ≠ 0) → π (Z_red_Stein a b ≠ 0);
+// (3) Non-zero preservation lemmas (now PROVEN by case analysis on the
+//     Z0/Zpos/Zneg shapes, using the integral-domain mul rules and the
+//     constructor discriminators Zpos≠Z0 / Zneg≠Z0).
+opaque symbol mul_ne_0 a b : π (a ≠ 0) → π (b ≠ 0) → π (a * b ≠ 0) ≔
+begin
+  induction
+  { assume b ha hb; apply ⊥ₑ; refine ha _; reflexivity }
+  { assume pa; induction
+    { assume ha hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb ha hb; refine Zpos≠Z0 (mul pa pb) }
+    { assume pb ha hb; refine Zneg≠Z0 (mul pa pb) } }
+  { assume pa; induction
+    { assume ha hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb ha hb; refine Zneg≠Z0 (mul pa pb) }
+    { assume pb ha hb; refine Zpos≠Z0 (mul pa pb) } }
+end;
+
+opaque symbol sign_ne_0 a : π (a ≠ 0) → π (sign a ≠ 0) ≔
+begin
+  induction
+  { assume ha; refine Zpos≠Z0 H }
+  { assume pa ha; refine Zpos≠Z0 H }
+  { assume pa ha; refine Zneg≠Z0 H }
+end;
+
+opaque symbol Z_red_Stein_l_ne_0 a b : π (a ≠ 0) → π (Z_red_Stein a b ≠ 0) ≔
+begin
+  induction
+  { assume b ha; apply ⊥ₑ; refine ha _; reflexivity }
+  { assume pa; induction
+    { assume ha; refine Zpos≠Z0 H }
+    { assume pb ha; refine Zpos≠Z0 (red_by_Stein_v2 pa pb) }
+    { assume pb ha; refine Zpos≠Z0 (red_by_Stein_v2 pa pb) } }
+  { assume pa; induction
+    { assume ha; refine Zneg≠Z0 H }
+    { assume pb ha; refine Zneg≠Z0 (red_by_Stein_v2 pa pb) }
+    { assume pb ha; refine Zneg≠Z0 (red_by_Stein_v2 pa pb) } }
+end;
 
 // Scaled cross-product: with sign factors, the cross-product identity
 // for the normalized numerator/denominator pair.
@@ -234,6 +282,107 @@ begin
     rewrite *_com (sign b) A;
     rewrite *_assoc;
     reflexivity
+end;
+
+// The normalized denominator sign b · Z_red_Stein b a is positive: it equals
+// Zpos of the ℙ reduction of |b|/|a|. (4 nonzero sign cases, each reflexivity.)
+opaque symbol denom_pos a b :
+  π (a ≠ 0) → π (b ≠ 0) →
+  π (sign b * Z_red_Stein b a = Zpos (red_by_Stein_v2 (unZpos b) (unZpos a))) ≔
+begin
+  induction
+  { assume b ha hb; apply ⊥ₑ; refine ha _; reflexivity }
+  { assume pa; induction
+    { assume ha hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb ha hb; reflexivity }
+    { assume pb ha hb; reflexivity } }
+  { assume pa; induction
+    { assume ha hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb ha hb; reflexivity }
+    { assume pb ha hb; reflexivity } }
+end;
+
+// |a·b| = |a|·|b| at the ℙ payload level (for nonzero a, b).
+opaque symbol unZpos_mul a b :
+  π (a ≠ 0) → π (b ≠ 0) →
+  π (unZpos (a * b) = mul (unZpos a) (unZpos b)) ≔
+begin
+  induction
+  { assume b ha hb; apply ⊥ₑ; refine ha _; reflexivity }
+  { assume pa; induction
+    { assume ha hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb ha hb; reflexivity }
+    { assume pb ha hb; reflexivity } }
+  { assume pa; induction
+    { assume ha hb; apply ⊥ₑ; refine hb _; reflexivity }
+    { assume pb ha hb; reflexivity }
+    { assume pb ha hb; reflexivity } }
+end;
+
+// Uniform non-degenerate case: all of a,b,c,d nonzero.
+// Denominators match via ℙ uniqueness (red_unique); numerators then match
+// by cross-multiplication (frac_red_cross) + cancellation — no sign casework.
+opaque symbol frac_eq_nz a b c d :
+  π (a ≠ 0) → π (b ≠ 0) → π (c ≠ 0) → π (d ≠ 0) →
+  π (a * d = c * b) → π (frac a b = frac c d) ≔
+begin
+  assume a b c d ha hb hc hd hcross;
+  have hmul : π (mul (unZpos a) (unZpos d) = mul (unZpos c) (unZpos b))
+    { rewrite left (unZpos_mul a d ha hd);
+      rewrite left (unZpos_mul c b hc hb);
+      refine feq unZpos hcross };
+  have hD : π (sign b * Z_red_Stein b a = sign d * Z_red_Stein d c)
+    { rewrite (denom_pos a b ha hb);
+      rewrite (denom_pos c d hc hd);
+      refine feq Zpos (∧ₑ₂ (red_unique (unZpos a) (unZpos b) (unZpos c) (unZpos d) hmul)) };
+  have hN : π (sign b * Z_red_Stein a b = sign d * Z_red_Stein c d)
+    { refine *_reg_r (sign b * Z_red_Stein a b) (sign d * Z_red_Stein c d) (b * d)
+        (mul_ne_0 b d hb hd) _;
+      rewrite left *_assoc (sign b * Z_red_Stein a b) b d;
+      rewrite (frac_red_cross b a);
+      rewrite *_com b d;
+      rewrite left *_assoc (sign d * Z_red_Stein c d) d b;
+      rewrite (frac_red_cross d c);
+      rewrite hD;
+      rewrite *_assoc a (sign d * Z_red_Stein d c) d;
+      rewrite *_com (sign d * Z_red_Stein d c) d;
+      rewrite left *_assoc a d (sign d * Z_red_Stein d c);
+      rewrite *_assoc c (sign d * Z_red_Stein d c) b;
+      rewrite *_com (sign d * Z_red_Stein d c) b;
+      rewrite left *_assoc c b (sign d * Z_red_Stein d c);
+      rewrite hcross;
+      reflexivity };
+  refine @feq2 int int rat (/)
+    (sign b * Z_red_Stein a b) (sign d * Z_red_Stein c d) hN
+    (sign b * Z_red_Stein b a) (sign d * Z_red_Stein d c) hD
+end;
+
+// Main theorem: ℚ-normalization is well-defined.
+opaque symbol frac_eq a b c d :
+  π (b ≠ 0) → π (d ≠ 0) → π (a * d = c * b) → π (frac a b = frac c d) ≔
+begin
+  induction
+  { assume b c d hb hd hcross;
+    have hcb : π (c * b = Z0) { symmetry; refine hcross };
+    have hc : π (c = Z0) { refine mul_eq_0_l c b hcb hb };
+    rewrite hc;
+    rewrite (frac_0_num b);
+    rewrite (frac_0_num d);
+    reflexivity }
+  { assume pa b c d hb hd hcross;
+    have ha : π (Zpos pa ≠ 0) { refine Zpos≠Z0 pa };
+    have hc : π (c ≠ 0)
+      { assume hc0;
+        refine mul_ne_0 (Zpos pa) d ha hd _;
+        rewrite hcross; rewrite hc0; reflexivity };
+    refine frac_eq_nz (Zpos pa) b c d ha hb hc hd hcross }
+  { assume pa b c d hb hd hcross;
+    have ha : π (Zneg pa ≠ 0) { refine Zneg≠Z0 pa };
+    have hc : π (c ≠ 0)
+      { assume hc0;
+        refine mul_ne_0 (Zneg pa) d ha hd _;
+        rewrite hcross; rewrite hc0; reflexivity };
+    refine frac_eq_nz (Zneg pa) b c d ha hb hc hd hcross }
 end;
 
 opaque symbol ᵣ+_assoc_div n1 d1 n2 d2 n3 d3

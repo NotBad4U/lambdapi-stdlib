@@ -909,6 +909,18 @@ begin
   rewrite hi; rewrite *_assoc; reflexivity
 end;
 
+opaque symbol div_mul_l z a c : π (z ∣ a) → π (z ∣ (c * a)) ≔
+begin
+  assume z a c ha;
+  refine ∃ₑ ha _; assume i hi;
+  refine ∃ᵢ (c * i) _;
+  rewrite hi;
+  rewrite left *_assoc;
+  rewrite (*_com c z);
+  rewrite *_assoc;
+  reflexivity
+end;
+
 // Cancel a common factor of 2:  (2·u) ∣ (2·v)  ⟹  u ∣ v.
 opaque symbol cancel2 u v : π ((2 * u) ∣ (2 * v)) → π (u ∣ v) ≔
 begin
@@ -990,4 +1002,566 @@ begin
   assume k hk;
   have hc : π (I a = O (mul q k)) { rewrite hk; reflexivity };
   refine I≠O hc
+end;
+
+// ============================================================
+// PHASE 2b — fuel-bound bookkeeping (ℕ/size) then ggcd_fuel_greatest.
+
+// m ≤ m + n  on ℕ.
+opaque symbol leq_addr m n : π (istrue (Stdlib.Nat.≤ m (Stdlib.Nat.+ m n))) ≔
+begin
+  induction
+  { assume n0; refine ⊤ᵢ }
+  { assume m' IH n0; refine IH n0 }
+end;
+
+// size_nat is always ≥ 1.
+opaque symbol size_pos p : π (istrue (Stdlib.Nat.≤ (_0 +1) (size_nat p))) ≔
+begin
+  induction
+  { assume p' IH; refine ⊤ᵢ }
+  { assume p' IH; refine ⊤ᵢ }
+  { refine ⊤ᵢ }
+end;
+
+// size_nat x + size_nat y ≥ 1 (used to make the n=0 fuel case vacuous).
+opaque symbol size_sum_pos x y :
+  π (istrue (Stdlib.Nat.≤ (_0 +1) (Stdlib.Nat.+ (size_nat x) (size_nat y)))) ≔
+begin
+  assume x y;
+  refine @leq_trans (_0 +1) (size_nat x) (Stdlib.Nat.+ (size_nat x) (size_nat y))
+    (size_pos x) (leq_addr (size_nat x) (size_nat y))
+end;
+
+// size is non-decreasing under successor.
+opaque symbol size_succ_ge q : π (istrue (Stdlib.Nat.≤ (size_nat q) (size_nat (succ q)))) ≔
+begin
+  induction
+  { assume q' IH; refine IH }
+  { assume q' IH; refine Stdlib.Nat.≤_refl (size_nat q' +1) }
+  { refine ⊤ᵢ }
+end;
+
+// size of the right summand ≤ size of the sum.
+opaque symbol size_add_ge_r p q :
+  π (istrue (Stdlib.Nat.≤ (size_nat q) (size_nat (add p q)))) ≔
+begin
+  assume p q;
+  refine ind_ℙeano (λ p0, istrue (Stdlib.Nat.≤ (size_nat q) (size_nat (add p0 q)))) _ _ p
+  { refine size_succ_ge q }
+  { assume p' IH; rewrite add_succ;
+    refine @leq_trans (size_nat q) (size_nat (add p' q)) (size_nat (succ (add p' q)))
+      IH (size_succ_ge (add p' q)) }
+end;
+
+// size of a (valid, a<b) difference does not exceed the minuend's size.
+opaque symbol size_sub_le a b :
+  π (compare a b = Lt) → π (istrue (Stdlib.Nat.≤ (size_nat (sub b a)) (size_nat b))) ≔
+begin
+  assume a b hlt;
+  have key : π (istrue (Stdlib.Nat.≤ (size_nat (O (sub b a))) (size_nat (I b))))
+    { rewrite left (sub_add_lt a b hlt); refine size_add_ge_r (I a) (O (sub b a)) };
+  refine key
+end;
+
+// 1 divides everything.
+opaque symbol div_H_all m : π (Zpos H ∣ Zpos m) ≔
+begin
+  assume m; refine divp_intro H m m _; reflexivity
+end;
+
+// Doubling preserves divisibility:  u ∣ v  ⟹  2·u ∣ 2·v.
+opaque symbol mul2_div u v : π (u ∣ v) → π ((2 * u) ∣ (2 * v)) ≔
+begin
+  assume u v h;
+  refine ∃ₑ h _; assume k hk;
+  refine ∃ᵢ k _;
+  rewrite hk; rewrite *_assoc; reflexivity
+end;
+
+// ---- per-shape fuel-bound lemmas: bound at k+1 for the node ⟹ bound at k
+//      for the recursive subcall's inputs. ----
+
+opaque symbol bnd_OO a b k :
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (O a)) (size_nat (O b))) (k +1))) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat a) (size_nat b)) k)) ≔
+begin
+  assume a b k h;
+  have h' : π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat a) (size_nat b +1)) k)) { refine h };
+  refine @leq_trans (Stdlib.Nat.+ (size_nat a) (size_nat b))
+                    (Stdlib.Nat.+ (size_nat a) (size_nat b +1)) k
+                    (∧ₑ₂ (leq_add2l (size_nat a) (size_nat b) (size_nat b +1)) (leqnSn (size_nat b)))
+                    h'
+end;
+
+opaque symbol bnd_IO a b k :
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (I a)) (size_nat (O b))) (k +1))) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (I a)) (size_nat b)) k)) ≔
+begin
+  assume a b k h;
+  have h' : π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat a) (size_nat b +1)) k)) { refine h };
+  simplify;
+  rewrite left (addnS (size_nat a) (size_nat b));
+  refine h'
+end;
+
+opaque symbol bnd_OI a b k :
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (O a)) (size_nat (I b))) (k +1))) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat a) (size_nat (I b))) k)) ≔
+begin
+  assume a b k h; refine h
+end;
+
+opaque symbol bnd_IIlt a b k :
+  π (compare a b = Lt) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (I a)) (size_nat (I b))) (k +1))) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (sub b a)) (size_nat (I a))) k)) ≔
+begin
+  assume a b k hlt h;
+  have hk : π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat a) (size_nat b) +1) k))
+    { rewrite left (addnS (size_nat a) (size_nat b)); refine h };
+  have hs : π (istrue (Stdlib.Nat.≤ (size_nat (sub b a)) (size_nat b)))
+    { refine size_sub_le a b hlt };
+  have hsa : π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (sub b a)) (size_nat a))
+                                     (Stdlib.Nat.+ (size_nat a) (size_nat b))))
+    { rewrite (addnC (size_nat a) (size_nat b));
+      refine ∧ₑ₂ (leq_add2r (size_nat a) (size_nat (sub b a)) (size_nat b)) hs };
+  simplify;
+  refine @leq_trans (Stdlib.Nat.+ (size_nat (sub b a)) (size_nat a) +1)
+                    (Stdlib.Nat.+ (size_nat a) (size_nat b) +1) k hsa hk
+end;
+
+opaque symbol bnd_IIgt a b k :
+  π (compare a b = Gt) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (I a)) (size_nat (I b))) (k +1))) →
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (sub a b)) (size_nat (I b))) k)) ≔
+begin
+  assume a b k hgt h;
+  have hlt' : π (compare b a = Lt) { rewrite compare_com; rewrite hgt; reflexivity };
+  have hk : π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat a) (size_nat b) +1) k))
+    { rewrite left (addnS (size_nat a) (size_nat b)); refine h };
+  have hs : π (istrue (Stdlib.Nat.≤ (size_nat (sub a b)) (size_nat a)))
+    { refine size_sub_le b a hlt' };
+  have hsa : π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat (sub a b)) (size_nat b))
+                                     (Stdlib.Nat.+ (size_nat a) (size_nat b))))
+    { refine ∧ₑ₂ (leq_add2r (size_nat b) (size_nat (sub a b)) (size_nat a)) hs };
+  simplify;
+  refine @leq_trans (Stdlib.Nat.+ (size_nat (sub a b)) (size_nat b) +1)
+                    (Stdlib.Nat.+ (size_nat a) (size_nat b) +1) k hsa hk
+end;
+
+// ============================================================
+// ggcd_fuel_greatest: with enough fuel, the gcd component is divisible by
+// every common (positive) divisor of the inputs.
+opaque symbol ggcd_fuel_greatest : Π n x y z,
+  π (istrue (Stdlib.Nat.≤ (Stdlib.Nat.+ (size_nat x) (size_nat y)) n)) →
+  π (Zpos z ∣ Zpos x) → π (Zpos z ∣ Zpos y) →
+  π (Zpos z ∣ Zpos ((ggcd_fuel n x y)₁)) ≔
+begin
+  induction
+  // n = 0 : the fuel bound is impossible (size sum ≥ 1)
+  { assume x y z hbound hx hy;
+    apply ⊥ₑ;
+    refine @leq_trans (_0 +1) (Stdlib.Nat.+ (size_nat x) (size_nat y)) _0
+      (size_sum_pos x y) hbound }
+  // n = k+1
+  { assume k IHk;
+    induction
+    // x = I a
+    { assume a IH_xa;
+      induction
+      // y = I b
+      { assume b IH_yb;
+        induction
+        // z = I z'
+        { assume z' IHz hbound hx hy;
+          refine ind_Comp
+            (λ c, (compare a b = c) ⇒ (Zpos (I z') ∣ Zpos ((ggcd_step_II k a b c)₁)))
+            _ _ _ (compare a b) _
+          // c = Eq : g = I a
+          { assume heq; refine hx }
+          // c = Lt : recurse (sub b a, I a)
+          { assume hlt;
+            have hib : π (Zpos (I a) + Zpos (O (sub b a)) = Zpos (I b))
+              { refine feq Zpos (sub_add_lt a b hlt) };
+            have hzsub : π (Zpos (I z') ∣ Zpos (O (sub b a)))
+              { refine div_add_cancel (Zpos (I z')) (Zpos (I a)) (Zpos (O (sub b a))) hx _;
+                rewrite hib; refine hy };
+            refine IHk (sub b a) (I a) (I z') (bnd_IIlt a b k hlt hbound)
+                       (eucl2_I z' (sub b a) hzsub) hx }
+          // c = Gt : recurse (sub a b, I b)
+          { assume hgt;
+            have hia : π (Zpos (I b) + Zpos (O (sub a b)) = Zpos (I a))
+              { refine feq Zpos (sub_add_gt a b hgt) };
+            have hzsub : π (Zpos (I z') ∣ Zpos (O (sub a b)))
+              { refine div_add_cancel (Zpos (I z')) (Zpos (I b)) (Zpos (O (sub a b))) hy _;
+                rewrite hia; refine hx };
+            refine IHk (sub a b) (I b) (I z') (bnd_IIgt a b k hgt hbound)
+                       (eucl2_I z' (sub a b) hzsub) hy }
+          { reflexivity } }
+        // z = O z' : even cannot divide the odd I a
+        { assume z' IHz hbound hx hy; apply ⊥ₑ; refine even_div_odd_false z' a hx }
+        // z = H
+        { assume hbound hx hy; refine div_H_all _ } }
+      // y = O b : g = gcd(I a, b)
+      { assume b IH_yb;
+        induction
+        { assume z' IHz hbound hx hy;
+          refine IHk (I a) b (I z') (bnd_IO a b k hbound) hx (eucl2_I z' b hy) }
+        { assume z' IHz hbound hx hy; apply ⊥ₑ; refine even_div_odd_false z' a hx }
+        { assume hbound hx hy; refine div_H_all _ } }
+      // y = H : g = H
+      { assume z hbound hx hy; refine hy } }
+    // x = O a
+    { assume a IH_xa;
+      induction
+      // y = I b : g = gcd(a, I b)
+      { assume b IH_yb;
+        induction
+        { assume z' IHz hbound hx hy;
+          refine IHk a (I b) (I z') (bnd_OI a b k hbound) (eucl2_I z' a hx) hy }
+        { assume z' IHz hbound hx hy; apply ⊥ₑ; refine even_div_odd_false z' b hy }
+        { assume hbound hx hy; refine div_H_all _ } }
+      // y = O b : g = 2·gcd(a,b)
+      { assume b IH_yb;
+        induction
+        // z = I z' (odd): z ∣ gcd(a,b) ⟹ z ∣ 2·gcd(a,b)
+        { assume z' IHz hbound hx hy;
+          refine div_mul_l (Zpos (I z')) (Zpos ((ggcd_fuel k a b)₁)) 2
+            (IHk a b (I z') (bnd_OO a b k hbound) (eucl2_I z' a hx) (eucl2_I z' b hy)) }
+        // z = O z' (even): cancel the factor 2
+        { assume z' IHz hbound hx hy;
+          refine mul2_div (Zpos z') (Zpos ((ggcd_fuel k a b)₁))
+            (IHk a b z' (bnd_OO a b k hbound) (cancel2 (Zpos z') (Zpos a) hx)
+                                              (cancel2 (Zpos z') (Zpos b) hy)) }
+        { assume hbound hx hy; refine div_H_all _ } }
+      // y = H : g = H
+      { assume z hbound hx hy; refine hy } }
+    // x = H : g = H
+    { assume y z hbound hx hy; refine hx } }
+end;
+
+// ============================================================
+// PHASE 2c — coprimality of the ggcd cofactors.
+
+// add k (O w) is never 1 (it is even-or-odd ≥ 2-shaped, headed by O or I).
+opaque symbol add_O_ne_H k w : π (add k (O w) ≠ H) ≔
+begin
+  assume k w;
+  refine ind_ℙ (λ k0, add k0 (O w) ≠ H) _ _ _ k
+  { assume p IHp h; refine I≠H h }
+  { assume p IHp h; refine O≠H h }
+  { assume h; refine I≠H h }
+end;
+
+// A positive dividing 1 is 1.
+opaque symbol div_H_eq z : π (Zpos z ∣ Zpos H) → π (z = H) ≔
+begin
+  induction
+  // z = I z'
+  { assume z' IHz' h;
+    apply ⊥ₑ;
+    have he : π (`∃ k, H = mul (I z') k) { refine divp_elim (I z') H h };
+    refine ∃ₑ he _; assume k hk;
+    refine add_O_ne_H k (mul z' k) _; symmetry; refine hk }
+  // z = O z'
+  { assume z' IHz' h;
+    apply ⊥ₑ;
+    have he : π (`∃ k, H = mul (O z') k) { refine divp_elim (O z') H h };
+    refine ∃ₑ he _; assume k hk;
+    refine O≠H (eq_sym hk) }
+  // z = H
+  { assume h; reflexivity }
+end;
+
+// The two cofactors produced by ggcd_safe are coprime: any common positive
+// divisor is 1. (Uses correctness x=g·aa, y=g·bb and greatest: g·z ∣ g ⟹ z ∣ 1.)
+opaque symbol ggcd_cofactor_coprime x y z :
+  π (Zpos z ∣ Zpos (((ggcd_safe x y)₂)₁)) →
+  π (Zpos z ∣ Zpos (((ggcd_safe x y)₂)₂)) → π (z = H) ≔
+begin
+  assume x y z haa hbb;
+  set N ≔ Stdlib.Nat.+ (size_nat x) (size_nat y);
+  have hx : π (x = mul ((ggcd_fuel N x y)₁) (((ggcd_fuel N x y)₂)₁))
+    { refine ∧ₑ₁ (ggcd_fuel_correct N x y) };
+  have hy : π (y = mul ((ggcd_fuel N x y)₁) (((ggcd_fuel N x y)₂)₂))
+    { refine ∧ₑ₂ (ggcd_fuel_correct N x y) };
+  have hgzx : π (Zpos (mul ((ggcd_fuel N x y)₁) z) ∣ Zpos x)
+    { refine ∃ₑ (divp_elim z (((ggcd_fuel N x y)₂)₁) haa) _; assume k hk;
+      refine divp_intro (mul ((ggcd_fuel N x y)₁) z) x k _;
+      rewrite left mul_assoc; rewrite left hk; refine hx };
+  have hgzy : π (Zpos (mul ((ggcd_fuel N x y)₁) z) ∣ Zpos y)
+    { refine ∃ₑ (divp_elim z (((ggcd_fuel N x y)₂)₂) hbb) _; assume k hk;
+      refine divp_intro (mul ((ggcd_fuel N x y)₁) z) y k _;
+      rewrite left mul_assoc; rewrite left hk; refine hy };
+  have hgzg : π (Zpos (mul ((ggcd_fuel N x y)₁) z) ∣ Zpos ((ggcd_fuel N x y)₁))
+    { refine ggcd_fuel_greatest N x y (mul ((ggcd_fuel N x y)₁) z)
+        (Stdlib.Nat.≤_refl N) hgzx hgzy };
+  refine div_H_eq z _;
+  refine ∃ₑ hgzg _; assume m hm;
+  refine ∃ᵢ m _;
+  have key : π (Zpos ((ggcd_fuel N x y)₁) * (Zpos z * m) = Zpos ((ggcd_fuel N x y)₁) * 1)
+    { rewrite *_neutral; rewrite left *_assoc; symmetry; refine hm };
+  have hzm : π (Zpos z * m = 1)
+    { refine *_reg_r (Zpos z * m) 1 (Zpos ((ggcd_fuel N x y)₁))
+        (Zpos≠Z0 ((ggcd_fuel N x y)₁)) _;
+      rewrite *_com (Zpos z * m) (Zpos ((ggcd_fuel N x y)₁));
+      rewrite *_com 1 (Zpos ((ggcd_fuel N x y)₁));
+      refine key };
+  refine eq_sym hzm
+end;
+
+// ============================================================
+// PHASE 4 — uniqueness of lowest terms.
+//
+// Builds, on top of greatest (ggcd_fuel_greatest) and cofactor coprimality
+// (ggcd_cofactor_coprime), the gcd-scaling identity gcd(k·x,k·y)=k·gcd(x,y).
+// Its hard direction is the Euclid-content, discharged here WITHOUT a
+// standalone Euclid's lemma: via multiplicative cancellation in divisibility
+// plus cofactor coprimality. Uniqueness of lowest terms then follows.
+
+// Generic transitivity of equality (not present in Eq.lp).
+opaque symbol eq_trans [a] [x y z : τ a] : π (x = y) → π (y = z) → π (x = z) ≔
+begin
+  assume a x y z hxy hyz; rewrite hxy; refine hyz
+end;
+
+// ---- ℤ divisibility: scaling and cancellation of a common factor ----
+
+// a ∣ b  ⟹  (w·a) ∣ (w·b).
+opaque symbol div_scale w a b : π (a ∣ b) → π ((w * a) ∣ (w * b)) ≔
+begin
+  assume w a b h;
+  refine ∃ₑ h _; assume k hk;
+  refine ∃ᵢ k _;
+  rewrite hk; rewrite *_assoc; reflexivity
+end;
+
+// w ≠ 0 and (w·a) ∣ (w·b)  ⟹  a ∣ b.
+opaque symbol div_cancel_l w a b : π (w ≠ Z0) → π ((w * a) ∣ (w * b)) → π (a ∣ b) ≔
+begin
+  assume w a b hw h;
+  refine ∃ₑ h _; assume k hk;
+  refine ∃ᵢ k _;
+  refine *_reg_r b (a * k) w hw _;
+  rewrite *_com b w;
+  rewrite hk;
+  rewrite *_com w a;
+  rewrite *_assoc a w k;
+  rewrite *_com w k;
+  rewrite left *_assoc a k w;
+  reflexivity
+end;
+
+// ℙ multiplicative right-cancellation (via the Zpos·Zpos bridge + *_reg_r).
+opaque symbol mul_cancel_r a b c : π (mul a c = mul b c) → π (a = b) ≔
+begin
+  assume a b c h;
+  refine Zpos_inj a b _;
+  refine *_reg_r (Zpos a) (Zpos b) (Zpos c) (Zpos≠Z0 c) _;
+  refine feq Zpos h
+end;
+
+// ---- the safe gcd as a named ℙ function, with its characterizing lemmas ----
+
+symbol gcdp : ℙ → ℙ → ℙ;
+rule gcdp $x $y ↪ ((ggcd_safe $x $y)₁);
+
+// gcd divides each argument.
+opaque symbol gcdp_div_l x y : π (Zpos (gcdp x y) ∣ Zpos x) ≔
+begin
+  assume x y;
+  refine divp_intro (gcdp x y) x (red_by_Stein_v2 x y) _;
+  refine ∧ₑ₁ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat x) (size_nat y)) x y)
+end;
+
+opaque symbol gcdp_div_r x y : π (Zpos (gcdp x y) ∣ Zpos y) ≔
+begin
+  assume x y;
+  refine divp_intro (gcdp x y) y (((ggcd_safe x y)₂)₂) _;
+  refine ∧ₑ₂ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat x) (size_nat y)) x y)
+end;
+
+// gcd is the greatest common divisor.
+opaque symbol gcdp_greatest x y z :
+  π (Zpos z ∣ Zpos x) → π (Zpos z ∣ Zpos y) → π (Zpos z ∣ Zpos (gcdp x y)) ≔
+begin
+  assume x y z hx hy;
+  refine ggcd_fuel_greatest (Stdlib.Nat.+ (size_nat x) (size_nat y)) x y z
+    (Stdlib.Nat.≤_refl (Stdlib.Nat.+ (size_nat x) (size_nat y))) hx hy
+end;
+
+// The two cofactors of (x,y) are coprime as a gcd: gcd(aa,bb) = H.
+opaque symbol cofactor_gcd_H x y :
+  π (gcdp (red_by_Stein_v2 x y) (((ggcd_safe x y)₂)₂) = H) ≔
+begin
+  assume x y;
+  refine ggcd_cofactor_coprime x y
+    (gcdp (red_by_Stein_v2 x y) (((ggcd_safe x y)₂)₂))
+    (gcdp_div_l (red_by_Stein_v2 x y) (((ggcd_safe x y)₂)₂))
+    (gcdp_div_r (red_by_Stein_v2 x y) (((ggcd_safe x y)₂)₂))
+end;
+
+// CORE: gcd(M·aa, M·bb) = M whenever aa, bb are coprime.
+// This is the Euclid-content of uniqueness, proved by cancellation.
+opaque symbol gcd_coprime_mul M aa bb :
+  π (gcdp aa bb = H) → π (gcdp (mul M aa) (mul M bb) = M) ≔
+begin
+  assume M aa bb h;
+  have hMaa : π (Zpos M ∣ Zpos (mul M aa))
+    { refine divp_intro M (mul M aa) aa _; reflexivity };
+  have hMbb : π (Zpos M ∣ Zpos (mul M bb))
+    { refine divp_intro M (mul M bb) bb _; reflexivity };
+  have hMG : π (Zpos M ∣ Zpos (gcdp (mul M aa) (mul M bb)))
+    { refine gcdp_greatest (mul M aa) (mul M bb) M hMaa hMbb };
+  refine ∃ₑ (divp_elim M (gcdp (mul M aa) (mul M bb)) hMG) _;
+  assume t ht;
+  have hGaa : π (Zpos (mul M t) ∣ Zpos (mul M aa))
+    { rewrite left ht; refine gcdp_div_l (mul M aa) (mul M bb) };
+  have hGbb : π (Zpos (mul M t) ∣ Zpos (mul M bb))
+    { rewrite left ht; refine gcdp_div_r (mul M aa) (mul M bb) };
+  have htaa : π (Zpos t ∣ Zpos aa)
+    { refine div_cancel_l (Zpos M) (Zpos t) (Zpos aa) (Zpos≠Z0 M) hGaa };
+  have htbb : π (Zpos t ∣ Zpos bb)
+    { refine div_cancel_l (Zpos M) (Zpos t) (Zpos bb) (Zpos≠Z0 M) hGbb };
+  have htH : π (t = H)
+    { refine div_H_eq t _; rewrite left h; refine gcdp_greatest aa bb t htaa htbb };
+  rewrite ht; rewrite htH; reflexivity
+end;
+
+// gcd-scaling on the cofactor decomposition (aa,bb,g abstract: no self-reference).
+opaque symbol gcd_scale_abs k g aa bb :
+  π (gcdp aa bb = H) →
+  π (gcdp (mul k (mul g aa)) (mul k (mul g bb)) = mul k g) ≔
+begin
+  assume k g aa bb h;
+  rewrite mul_assoc k g aa;
+  rewrite mul_assoc k g bb;
+  refine gcd_coprime_mul (mul k g) aa bb h
+end;
+
+// gcd-scaling identity: gcd(k·x, k·y) = k·gcd(x,y).
+opaque symbol gcd_scale k x y : π (gcdp (mul k x) (mul k y) = mul k (gcdp x y)) ≔
+begin
+  assume k x y;
+  have hx : π (x = mul (gcdp x y) (red_by_Stein_v2 x y))
+    { refine ∧ₑ₁ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat x) (size_nat y)) x y) };
+  have hy : π (y = mul (gcdp x y) (((ggcd_safe x y)₂)₂))
+    { refine ∧ₑ₂ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat x) (size_nat y)) x y) };
+  have hco : π (gcdp (red_by_Stein_v2 x y) (((ggcd_safe x y)₂)₂) = H)
+    { refine cofactor_gcd_H x y };
+  rewrite (feq (mul k) hx);
+  rewrite (feq (mul k) hy);
+  refine gcd_scale_abs k (gcdp x y) (red_by_Stein_v2 x y) (((ggcd_safe x y)₂)₂) hco
+end;
+
+// UNIQUENESS OF LOWEST TERMS (ℙ): two reduced fractions equal as a
+// cross-product must coincide numerator and denominator.
+//   n1·d2 = n2·d1, gcd(n1,d1)=1, gcd(n2,d2)=1  ⟹  n1 = n2 ∧ d1 = d2.
+opaque symbol lowest_terms_unique n1 d1 n2 d2 :
+  π (mul n1 d2 = mul n2 d1) →
+  π (gcdp n1 d1 = H) → π (gcdp n2 d2 = H) →
+  π (n1 = n2 ∧ d1 = d2) ≔
+begin
+  assume n1 d1 n2 d2 hcross hc1 hc2;
+  // d2 = gcd(d2·n1, d2·d1)
+  have hA : π (gcdp (mul d2 n1) (mul d2 d1) = d2)
+    { rewrite (gcd_scale d2 n1 d1); rewrite hc1; reflexivity };
+  // d1 = gcd(d1·n2, d1·d2)
+  have hB : π (gcdp (mul d1 n2) (mul d1 d2) = d1)
+    { rewrite (gcd_scale d1 n2 d2); rewrite hc2; reflexivity };
+  // the two gcd inputs agree (up to commutativity and hcross)
+  have ea1 : π (mul d2 n1 = mul d1 n2)
+    { refine eq_trans (mul_com d2 n1) (eq_trans hcross (mul_com n2 d1)) };
+  have ea2 : π (mul d2 d1 = mul d1 d2)
+    { refine mul_com d2 d1 };
+  have hgg : π (gcdp (mul d2 n1) (mul d2 d1) = gcdp (mul d1 n2) (mul d1 d2))
+    { refine @feq2 pos pos pos gcdp (mul d2 n1) (mul d1 n2) ea1 (mul d2 d1) (mul d1 d2) ea2 };
+  have hd : π (d2 = d1)
+    { refine eq_trans (eq_sym hA) (eq_trans hgg hB) };
+  // recover n1 = n2 by cancelling d2 in n1·d2 = n2·d1 = n2·d2
+  have hn : π (n1 = n2)
+    { refine mul_cancel_r n1 n2 d2
+        (eq_trans hcross (feq (mul n2) (eq_sym hd))) };
+  refine ∧ᵢ hn (eq_sym hd)
+end;
+
+// ---- symmetry: the second cofactor of (x,y) is the reduction of (y,x) ----
+// Same fuel-alignment trick as red_by_Stein_v2_cross.
+opaque symbol red_swap x y : π (((ggcd_safe x y)₂)₂ = red_by_Stein_v2 y x) ≔
+begin
+  assume x y;
+  have hfuel : π (Stdlib.Nat.+ (size_nat y) (size_nat x) = Stdlib.Nat.+ (size_nat x) (size_nat y))
+    { refine addnC (size_nat y) (size_nat x) };
+  simplify;
+  rewrite hfuel;
+  rewrite (∧ₑ₂ (ggcd_fuel_sym (Stdlib.Nat.+ (size_nat x) (size_nat y)) y x));
+  reflexivity
+end;
+
+// The reduced numerator and denominator of x/y are coprime.
+opaque symbol reduced_coprime x y :
+  π (gcdp (red_by_Stein_v2 x y) (red_by_Stein_v2 y x) = H) ≔
+begin
+  assume x y;
+  rewrite left (red_swap x y);
+  refine cofactor_gcd_H x y
+end;
+
+// ℙ left-cancellation and a 4-factor regrouping, for red_unique's algebra.
+opaque symbol mul_cancel_l c a b : π (mul c a = mul c b) → π (a = b) ≔
+begin
+  assume c a b h;
+  refine mul_cancel_r a b c _;
+  rewrite mul_com a c; rewrite mul_com b c; refine h
+end;
+
+opaque symbol mul4_rearrange g aa h dd :
+  π (mul (mul g aa) (mul h dd) = mul (mul g h) (mul aa dd)) ≔
+begin
+  assume g aa h dd;
+  rewrite left mul_assoc g aa (mul h dd);
+  rewrite mul_assoc aa h dd;
+  rewrite mul_com aa h;
+  rewrite left mul_assoc h aa dd;
+  rewrite mul_assoc g h (mul aa dd);
+  reflexivity
+end;
+
+// ℙ-LEVEL CROSS UNIQUENESS: equal positive fractions reduce identically.
+//   pa·pd = pc·pb  ⟹  red(pa,pb)=red(pc,pd) ∧ red(pb,pa)=red(pd,pc).
+opaque symbol red_unique pa pb pc pd :
+  π (mul pa pd = mul pc pb) →
+  π ((red_by_Stein_v2 pa pb = red_by_Stein_v2 pc pd)
+   ∧ (red_by_Stein_v2 pb pa = red_by_Stein_v2 pd pc)) ≔
+begin
+  assume pa pb pc pd hcross;
+  have hpa : π (pa = mul (gcdp pa pb) (red_by_Stein_v2 pa pb))
+    { refine ∧ₑ₁ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat pa) (size_nat pb)) pa pb) };
+  have hpb : π (pb = mul (gcdp pa pb) (red_by_Stein_v2 pb pa))
+    { rewrite left (red_swap pa pb);
+      refine ∧ₑ₂ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat pa) (size_nat pb)) pa pb) };
+  have hpc : π (pc = mul (gcdp pc pd) (red_by_Stein_v2 pc pd))
+    { refine ∧ₑ₁ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat pc) (size_nat pd)) pc pd) };
+  have hpd : π (pd = mul (gcdp pc pd) (red_by_Stein_v2 pd pc))
+    { rewrite left (red_swap pc pd);
+      refine ∧ₑ₂ (ggcd_fuel_correct (Stdlib.Nat.+ (size_nat pc) (size_nat pd)) pc pd) };
+  set g ≔ gcdp pa pb;
+  set h ≔ gcdp pc pd;
+  set aa ≔ red_by_Stein_v2 pa pb;
+  set bb ≔ red_by_Stein_v2 pb pa;
+  set cc ≔ red_by_Stein_v2 pc pd;
+  set dd ≔ red_by_Stein_v2 pd pc;
+  have H0 : π (mul (mul g aa) (mul h dd) = mul (mul h cc) (mul g bb))
+    { refine eq_trans
+        (@feq2 pos pos pos mul (mul g aa) pa (eq_sym hpa) (mul h dd) pd (eq_sym hpd))
+        (eq_trans hcross
+          (@feq2 pos pos pos mul pc (mul h cc) hpc pb (mul g bb) hpb)) };
+  have hadcb : π (mul aa dd = mul cc bb)
+    { refine mul_cancel_l (mul g h) (mul aa dd) (mul cc bb) _;
+      refine eq_trans (eq_sym (mul4_rearrange g aa h dd)) (eq_trans H0 _);
+      rewrite (mul4_rearrange h cc g bb);
+      rewrite mul_com h g;
+      reflexivity };
+  refine lowest_terms_unique aa bb cc dd hadcb (reduced_coprime pa pb) (reduced_coprime pc pd)
 end;
