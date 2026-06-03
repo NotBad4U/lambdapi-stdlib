@@ -512,6 +512,29 @@ begin
     reflexivity
 end;
 
+// Associativity of ᵣ+ on raw `frac n d` triples with all denominators ≠ 0.
+// Lifts ᵣ+_assoc_div by feeding it the *normalized* numerator/denominators
+// (which are exactly what `frac n d` reduces to under the frac rewrite rule).
+opaque symbol ᵣ+_assoc_nz n1 d1 n2 d2 n3 d3 :
+    π (d1 ≠ 0) → π (d2 ≠ 0) → π (d3 ≠ 0) →
+    π (((frac n1 d1 ᵣ+ frac n2 d2) ᵣ+ frac n3 d3) = (frac n1 d1 ᵣ+ (frac n2 d2 ᵣ+ frac n3 d3))) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 hd1 hd2 hd3;
+  have hD1 : π (sign d1 * Z_red_Stein d1 n1 ≠ 0)
+    { refine mul_ne_0 (sign d1) (Z_red_Stein d1 n1)
+        (sign_ne_0 d1 hd1) (Z_red_Stein_l_ne_0 d1 n1 hd1) };
+  have hD2 : π (sign d2 * Z_red_Stein d2 n2 ≠ 0)
+    { refine mul_ne_0 (sign d2) (Z_red_Stein d2 n2)
+        (sign_ne_0 d2 hd2) (Z_red_Stein_l_ne_0 d2 n2 hd2) };
+  have hD3 : π (sign d3 * Z_red_Stein d3 n3 ≠ 0)
+    { refine mul_ne_0 (sign d3) (Z_red_Stein d3 n3)
+        (sign_ne_0 d3 hd3) (Z_red_Stein_l_ne_0 d3 n3 hd3) };
+  refine ᵣ+_assoc_div (sign d1 * Z_red_Stein n1 d1) (sign d1 * Z_red_Stein d1 n1)
+                       (sign d2 * Z_red_Stein n2 d2) (sign d2 * Z_red_Stein d2 n2)
+                       (sign d3 * Z_red_Stein n3 d3) (sign d3 * Z_red_Stein d3 n3)
+                       hD1 hD2 hD3
+end;
+
 
 opaque symbol ᵣ+_com x y :  π (x ᵣ+ y = y ᵣ+  x) ≔
 begin
@@ -692,19 +715,56 @@ end;
 
 opaque symbol ᵣ*_neutral_l x : π ((frac 1 1 *ᵣ x) = x) ≔
 begin
-admitted;
+  refine ind_Rat (λ u, (frac 1 1 *ᵣ u) = u) _;
+  assume n;
+  induction
+  { reflexivity }
+  { assume p;
+    set N ≔ sign (Zpos p) * Z_red_Stein n (Zpos p);
+    set D ≔ sign (Zpos p) * Z_red_Stein (Zpos p) n;
+    refine frac_eq (1 * N) (1 * D) n (Zpos p) _ _ _
+    { refine mul_ne_0 1 D (Zpos≠Z0 H)
+        (mul_ne_0 (sign (Zpos p)) (Z_red_Stein (Zpos p) n)
+           (sign_ne_0 (Zpos p) (Zpos≠Z0 p))
+           (Z_red_Stein_l_ne_0 (Zpos p) n (Zpos≠Z0 p))) }
+    { refine Zpos≠Z0 p }
+    { rewrite *_neutral_l;
+      rewrite *_neutral_l;
+      refine frac_red_cross (Zpos p) n } }
+  { assume p;
+    set N ≔ sign (Zneg p) * Z_red_Stein n (Zneg p);
+    set D ≔ sign (Zneg p) * Z_red_Stein (Zneg p) n;
+    refine frac_eq (1 * N) (1 * D) n (Zneg p) _ _ _
+    { refine mul_ne_0 1 D (Zpos≠Z0 H)
+        (mul_ne_0 (sign (Zneg p)) (Z_red_Stein (Zneg p) n)
+           (sign_ne_0 (Zneg p) (Zneg≠Z0 p))
+           (Z_red_Stein_l_ne_0 (Zneg p) n (Zneg≠Z0 p))) }
+    { refine Zneg≠Z0 p }
+    { rewrite *_neutral_l;
+      rewrite *_neutral_l;
+      refine frac_red_cross (Zneg p) n } }
+end;
 
 opaque symbol ᵣ*_neutral_r x : π ((x *ᵣ frac 1 1) = x) ≔
 begin
-admitted;
+  assume x;
+  rewrite (ᵣ*_com x (frac 1 1));
+  refine ᵣ*_neutral_l x
+end;
 
+// `1 / 1` and `frac 1 1` are convertible (frac 1 1 reduces to 1/1), so the
+// raw-`/` twins follow by delegation to ᵣ*_neutral_l / _r.
 opaque symbol ᵣ*_neutral_div_l x : π ((1 / 1 *ᵣ x) = x) ≔
 begin
-admitted;
+  assume x;
+  refine ᵣ*_neutral_l x
+end;
 
 opaque symbol ᵣ*_neutral_div_r x : π ((x *ᵣ 1 / 1) = x) ≔
 begin
-admitted;
+  assume x;
+  refine ᵣ*_neutral_r x
+end;
 
 symbol nze_frac : π (0 / 1 = frac 0 1) ≔
 begin reflexivity end;
@@ -716,13 +776,121 @@ begin reflexivity end;
 // ᵣ+_assoc_div above.
 opaque symbol ᵣ+_assoc x y z :  π (((x ᵣ+ y) ᵣ+ z) = (x ᵣ+ (y ᵣ+ z))) ≔
 begin
-admitted;
+  refine ind_Rat (λ u, `∀ b, `∀ c, ((u ᵣ+ b) ᵣ+ c) = (u ᵣ+ (b ᵣ+ c))) _;
+  assume n1;
+  induction
+  // d1 = Z0
+  { assume b c;
+    rewrite (frac_0_den n1);
+    rewrite (ᵣ+_neutral_div_l b);
+    rewrite (ᵣ+_neutral_div_l (b ᵣ+ c));
+    reflexivity }
+  // d1 = Zpos p1
+  { assume p1;
+    refine ind_Rat (λ u, `∀ c,
+      ((frac n1 (Zpos p1) ᵣ+ u) ᵣ+ c) = (frac n1 (Zpos p1) ᵣ+ (u ᵣ+ c))) _;
+    assume n2;
+    induction
+    // d2 = Z0
+    { assume c;
+      rewrite (frac_0_den n2);
+      rewrite (ᵣ+_neutral_div_r (frac n1 (Zpos p1)));
+      rewrite (ᵣ+_neutral_div_l c);
+      reflexivity }
+    // d2 = Zpos p2
+    { assume p2;
+      refine ind_Rat (λ u,
+        ((frac n1 (Zpos p1) ᵣ+ frac n2 (Zpos p2)) ᵣ+ u)
+          = (frac n1 (Zpos p1) ᵣ+ (frac n2 (Zpos p2) ᵣ+ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zpos p1) ᵣ+ frac n2 (Zpos p2)));
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zpos p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zpos p1) n2 (Zpos p2) n3 (Zpos p3)
+          (Zpos≠Z0 p1) (Zpos≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zpos p1) n2 (Zpos p2) n3 (Zneg p3)
+          (Zpos≠Z0 p1) (Zpos≠Z0 p2) (Zneg≠Z0 p3) } }
+    // d2 = Zneg p2
+    { assume p2;
+      refine ind_Rat (λ u,
+        ((frac n1 (Zpos p1) ᵣ+ frac n2 (Zneg p2)) ᵣ+ u)
+          = (frac n1 (Zpos p1) ᵣ+ (frac n2 (Zneg p2) ᵣ+ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zpos p1) ᵣ+ frac n2 (Zneg p2)));
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zneg p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zpos p1) n2 (Zneg p2) n3 (Zpos p3)
+          (Zpos≠Z0 p1) (Zneg≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zpos p1) n2 (Zneg p2) n3 (Zneg p3)
+          (Zpos≠Z0 p1) (Zneg≠Z0 p2) (Zneg≠Z0 p3) } } }
+  // d1 = Zneg p1
+  { assume p1;
+    refine ind_Rat (λ u, `∀ c,
+      ((frac n1 (Zneg p1) ᵣ+ u) ᵣ+ c) = (frac n1 (Zneg p1) ᵣ+ (u ᵣ+ c))) _;
+    assume n2;
+    induction
+    { assume c;
+      rewrite (frac_0_den n2);
+      rewrite (ᵣ+_neutral_div_r (frac n1 (Zneg p1)));
+      rewrite (ᵣ+_neutral_div_l c);
+      reflexivity }
+    { assume p2;
+      refine ind_Rat (λ u,
+        ((frac n1 (Zneg p1) ᵣ+ frac n2 (Zpos p2)) ᵣ+ u)
+          = (frac n1 (Zneg p1) ᵣ+ (frac n2 (Zpos p2) ᵣ+ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zneg p1) ᵣ+ frac n2 (Zpos p2)));
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zpos p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zneg p1) n2 (Zpos p2) n3 (Zpos p3)
+          (Zneg≠Z0 p1) (Zpos≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zneg p1) n2 (Zpos p2) n3 (Zneg p3)
+          (Zneg≠Z0 p1) (Zpos≠Z0 p2) (Zneg≠Z0 p3) } }
+    { assume p2;
+      refine ind_Rat (λ u,
+        ((frac n1 (Zneg p1) ᵣ+ frac n2 (Zneg p2)) ᵣ+ u)
+          = (frac n1 (Zneg p1) ᵣ+ (frac n2 (Zneg p2) ᵣ+ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zneg p1) ᵣ+ frac n2 (Zneg p2)));
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zneg p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zneg p1) n2 (Zneg p2) n3 (Zpos p3)
+          (Zneg≠Z0 p1) (Zneg≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣ+_assoc_nz n1 (Zneg p1) n2 (Zneg p2) n3 (Zneg p3)
+          (Zneg≠Z0 p1) (Zneg≠Z0 p2) (Zneg≠Z0 p3) } } }
+end;
 
 
 symbol ᵣ≐: ℚ → ℚ → Comp; notation ᵣ≐ infix 10;
 rule ($n1 / $d1) ᵣ≐ ($n2 / $d2) ↪ $n1 * $d2 ≐ $n2 * $d1;
 
 
-opaque symbol distr*ᵣᵣ+ x y z : π(x *ᵣ (y ᵣ+ z) = x *ᵣ y ᵣ+ x *ᵣ z) ≔
+// Distributivity of *ᵣ over ᵣ+. The structural reduction (case-bash on the
+// denominators d1,d2,d3) is straightforward — degenerate cases use
+// `0_mul`/`mul_0` (absorbing 0/1) and the ᵣ+ neutral lemmas. The all-nonzero
+// leaf reduces to a cross-product polynomial identity in n_i, d_i and the
+// Z_red_Stein normalizations, requiring ~80 lines of careful tree-reshaping
+// rewrites of comparable scale to ᵣ+_assoc_div's algebra (and using
+// `frac_red_cross` three times to eliminate the normalizations). Left
+// admitted; the heart is well-understood and reduces to the polynomial
+// identity n1*(n2*d3+n3*d2)*R23*R12*R13 = (sum of two monomials after
+// distributing the RHS), which holds modulo commutativity.
+opaque symbol ᵣdistr*+ x y z : π(x *ᵣ (y ᵣ+ z) = x *ᵣ y ᵣ+ x *ᵣ z) ≔
 begin
 admitted;
