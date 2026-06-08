@@ -881,6 +881,23 @@ symbol ᵣ≐: ℚ → ℚ → Comp; notation ᵣ≐ infix 10;
 rule ($n1 / $d1) ᵣ≐ ($n2 / $d2) ↪ $n1 * $d2 ≐ $n2 * $d1;
 
 
+// Zero is absorbing for *ᵣ: 0/1 * x = 0/1 (and symmetric).
+opaque symbol zero_mul_l x : π ((0 / 1) *ᵣ x = (0 / 1)) ≔
+begin
+  refine ind_Rat (λ u, ((0 / 1) *ᵣ u) = (0 / 1)) _;
+  assume n d;
+  simplify *ᵣ;
+  rewrite *_cancel_l;
+  refine frac_0_num (1 * (sign d * Z_red_Stein d n))
+end;
+
+opaque symbol zero_mul_r x : π (x *ᵣ (0 / 1) = (0 / 1)) ≔
+begin
+  assume x;
+  rewrite (ᵣ*_com x (0 / 1));
+  refine zero_mul_l x
+end;
+
 // Distributivity of *ᵣ over ᵣ+. The structural reduction (case-bash on the
 // denominators d1,d2,d3) is straightforward — degenerate cases use
 // `0_mul`/`mul_0` (absorbing 0/1) and the ᵣ+ neutral lemmas. The all-nonzero
@@ -891,6 +908,272 @@ rule ($n1 / $d1) ᵣ≐ ($n2 / $d2) ↪ $n1 * $d2 ≐ $n2 * $d1;
 // admitted; the heart is well-understood and reduces to the polynomial
 // identity n1*(n2*d3+n3*d2)*R23*R12*R13 = (sum of two monomials after
 // distributing the RHS), which holds modulo commutativity.
+// Swap the first two factors in a right-associated triple product.
+opaque symbol *_swap_l a b c : π (a * (b * c) = b * (a * c)) ≔
+begin
+  assume a b c;
+  rewrite left *_assoc a b c;
+  rewrite *_com a b;
+  rewrite *_assoc b a c;
+  reflexivity
+end;
+
+opaque symbol ᵣdistr*+_div_nz n1 d1 n2 d2 n3 d3
+    (hd1 : π (d1 ≠ 0)) (hd2 : π (d2 ≠ 0)) (hd3 : π (d3 ≠ 0)) :
+    π (n1/d1 *ᵣ (n2/d2 ᵣ+ n3/d3) = (n1/d1 *ᵣ n2/d2) ᵣ+ (n1/d1 *ᵣ n3/d3)) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 hd1 hd2 hd3;
+  simplify *ᵣ; simplify ᵣ+;
+  have hd2d3 : π (d2 * d3 ≠ 0) { refine mul_ne_0 d2 d3 hd2 hd3 };
+  have hd1d2 : π (d1 * d2 ≠ 0) { refine mul_ne_0 d1 d2 hd1 hd2 };
+  have hd1d3 : π (d1 * d3 ≠ 0) { refine mul_ne_0 d1 d3 hd1 hd3 };
+  have hQ : π (sign (d2 * d3) * Z_red_Stein (d2 * d3) ((n2 * d3) + (n3 * d2)) ≠ 0)
+    { refine mul_ne_0 (sign (d2 * d3)) (Z_red_Stein (d2 * d3) ((n2 * d3) + (n3 * d2)))
+        (sign_ne_0 (d2 * d3) hd2d3)
+        (Z_red_Stein_l_ne_0 (d2 * d3) ((n2 * d3) + (n3 * d2)) hd2d3) };
+  have hS : π (sign (d1 * d2) * Z_red_Stein (d1 * d2) (n1 * n2) ≠ 0)
+    { refine mul_ne_0 (sign (d1 * d2)) (Z_red_Stein (d1 * d2) (n1 * n2))
+        (sign_ne_0 (d1 * d2) hd1d2)
+        (Z_red_Stein_l_ne_0 (d1 * d2) (n1 * n2) hd1d2) };
+  have hU : π (sign (d1 * d3) * Z_red_Stein (d1 * d3) (n1 * n3) ≠ 0)
+    { refine mul_ne_0 (sign (d1 * d3)) (Z_red_Stein (d1 * d3) (n1 * n3))
+        (sign_ne_0 (d1 * d3) hd1d3)
+        (Z_red_Stein_l_ne_0 (d1 * d3) (n1 * n3) hd1d3) };
+  refine frac_eq _ _ _ _ (mul_ne_0 _ _ hd1 hQ) (mul_ne_0 _ _ hS hU) _;
+  // Cross-product goal: (n1 * P) * (S * U) = ((R * U) + (T * S)) * (d1 * Q)
+  set P ≔ sign (d2 * d3) * Z_red_Stein ((n2 * d3) + (n3 * d2)) (d2 * d3);
+  set Q ≔ sign (d2 * d3) * Z_red_Stein (d2 * d3) ((n2 * d3) + (n3 * d2));
+  set R ≔ sign (d1 * d2) * Z_red_Stein (n1 * n2) (d1 * d2);
+  set S ≔ sign (d1 * d2) * Z_red_Stein (d1 * d2) (n1 * n2);
+  set T ≔ sign (d1 * d3) * Z_red_Stein (n1 * n3) (d1 * d3);
+  set U ≔ sign (d1 * d3) * Z_red_Stein (d1 * d3) (n1 * n3);
+  have R1 : π (P * (d2 * d3) = ((n2 * d3) + (n3 * d2)) * Q)
+    { refine frac_red_cross (d2 * d3) ((n2 * d3) + (n3 * d2)) };
+  have R2 : π (R * (d1 * d2) = (n1 * n2) * S)
+    { refine frac_red_cross (d1 * d2) (n1 * n2) };
+  have R3 : π (T * (d1 * d3) = (n1 * n3) * U)
+    { refine frac_red_cross (d1 * d3) (n1 * n3) };
+  refine *_reg_r _ _ (d2 * d3) hd2d3 _;
+  // Goal: ((n1 * P) * (S * U)) * (d2 * d3) = (((R * U) + (T * S)) * (d1 * Q)) * (d2 * d3)
+
+  // === LHS: reshape, apply R1, distribute the resulting binomial ===
+  rewrite *_assoc (n1 * P) (S * U) (d2 * d3);
+  rewrite *_com (S * U) (d2 * d3);
+  rewrite left *_assoc (n1 * P) (d2 * d3) (S * U);
+  rewrite *_assoc n1 P (d2 * d3);
+  rewrite R1;
+  // LHS = (n1 * (((n2 * d3) + (n3 * d2)) * Q)) * (S * U)
+  rewrite *_com ((n2 * d3) + (n3 * d2)) Q;
+  rewrite *_distr_+ Q (n2 * d3) (n3 * d2);
+  rewrite *_distr_+ n1 (Q * (n2 * d3)) (Q * (n3 * d2));
+  rewrite *_com ((n1 * (Q * (n2 * d3))) + (n1 * (Q * (n3 * d2)))) (S * U);
+  rewrite *_distr_+ (S * U) (n1 * (Q * (n2 * d3))) (n1 * (Q * (n3 * d2)));
+  // LHS = ((S*U) * (n1*(Q*(n2*d3)))) + ((S*U) * (n1*(Q*(n3*d2))))
+
+  // === RHS: distribute ===
+  rewrite *_com ((R * U) + (T * S)) (d1 * Q);
+  rewrite *_distr_+ (d1 * Q) (R * U) (T * S);
+  rewrite *_com (((d1 * Q) * (R * U)) + ((d1 * Q) * (T * S))) (d2 * d3);
+  rewrite *_distr_+ (d2 * d3) ((d1 * Q) * (R * U)) ((d1 * Q) * (T * S));
+  // RHS = ((d2*d3) * ((d1*Q)*(R*U))) + ((d2*d3) * ((d1*Q)*(T*S)))
+
+  // === Split into two monomial equalities ===
+  refine @feq2 int int int (+)
+    ((S * U) * (n1 * (Q * (n2 * d3))))
+    ((d2 * d3) * ((d1 * Q) * (R * U)))
+    _
+    ((S * U) * (n1 * (Q * (n3 * d2))))
+    ((d2 * d3) * ((d1 * Q) * (T * S)))
+    _
+  // ===== Sub-goal 1: (S*U)*(n1*(Q*(n2*d3))) = (d2*d3)*((d1*Q)*(R*U)) =====
+  { // Reshape RHS to expose R*(d1*d2), then apply R2.
+    rewrite *_com d2 d3;
+    rewrite *_assoc d3 d2 ((d1 * Q) * (R * U));
+    rewrite *_swap_l d2 (d1 * Q) (R * U);
+    rewrite *_swap_l d2 R U;
+    rewrite *_swap_l (d1 * Q) R (d2 * U);
+    rewrite *_assoc d1 Q (d2 * U);
+    rewrite *_swap_l Q d2 U;
+    rewrite left *_assoc d1 d2 (Q * U);
+    rewrite left *_assoc R (d1 * d2) (Q * U);
+    rewrite R2;
+    // RHS = d3 * (((n1*n2)*S) * (Q*U))
+    rewrite *_assoc n1 n2 S;
+    rewrite *_assoc n1 (n2 * S) (Q * U);
+    rewrite *_swap_l d3 n1 ((n2 * S) * (Q * U));
+    rewrite *_swap_l d3 (n2 * S) (Q * U);
+    rewrite *_assoc n2 S (d3 * (Q * U));
+    rewrite *_swap_l n2 S (d3 * (Q * U));
+    rewrite left *_assoc n2 d3 (Q * U);
+    rewrite *_com (n2 * d3) (Q * U);
+    rewrite *_assoc Q U (n2 * d3);
+    rewrite *_swap_l Q U (n2 * d3);
+    // RHS = n1 * (S * (U * (Q * (n2 * d3))))
+    // Reshape LHS to match.
+    rewrite *_swap_l (S * U) n1 (Q * (n2 * d3));
+    rewrite *_assoc S U (Q * (n2 * d3));
+    reflexivity }
+  // ===== Sub-goal 2: (S*U)*(n1*(Q*(n3*d2))) = (d2*d3)*((d1*Q)*(T*S)) =====
+  { // Reshape RHS to expose T*(d1*d3), then apply R3.
+    rewrite *_assoc d2 d3 ((d1 * Q) * (T * S));
+    rewrite *_swap_l d3 (d1 * Q) (T * S);
+    rewrite *_swap_l d3 T S;
+    rewrite *_swap_l (d1 * Q) T (d3 * S);
+    rewrite *_assoc d1 Q (d3 * S);
+    rewrite *_swap_l Q d3 S;
+    rewrite left *_assoc d1 d3 (Q * S);
+    rewrite left *_assoc T (d1 * d3) (Q * S);
+    rewrite R3;
+    // RHS = d2 * (((n1*n3)*U) * (Q*S))
+    rewrite *_assoc n1 n3 U;
+    rewrite *_assoc n1 (n3 * U) (Q * S);
+    rewrite *_swap_l d2 n1 ((n3 * U) * (Q * S));
+    rewrite *_swap_l d2 (n3 * U) (Q * S);
+    rewrite *_assoc n3 U (d2 * (Q * S));
+    rewrite *_swap_l n3 U (d2 * (Q * S));
+    rewrite left *_assoc n3 d2 (Q * S);
+    rewrite *_com (n3 * d2) (Q * S);
+    rewrite *_assoc Q S (n3 * d2);
+    rewrite *_swap_l Q S (n3 * d2);
+    // RHS = n1 * (U * (S * (Q * (n3 * d2))))
+    // Reshape LHS to match: LHS = (S*U)*(n1*(Q*(n3*d2)))
+    rewrite *_swap_l (S * U) n1 (Q * (n3 * d2));
+    rewrite *_com S U;
+    rewrite *_assoc U S (Q * (n3 * d2));
+    reflexivity }
+end;
+
+// Lift ᵣdistr*+_div_nz to abstract `frac n d` form, feeding normalized N, D.
+opaque symbol ᵣdistr*+_nz n1 d1 n2 d2 n3 d3 :
+    π (d1 ≠ 0) → π (d2 ≠ 0) → π (d3 ≠ 0) →
+    π (frac n1 d1 *ᵣ (frac n2 d2 ᵣ+ frac n3 d3)
+       = (frac n1 d1 *ᵣ frac n2 d2) ᵣ+ (frac n1 d1 *ᵣ frac n3 d3)) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 hd1 hd2 hd3;
+  have hD1 : π (sign d1 * Z_red_Stein d1 n1 ≠ 0)
+    { refine mul_ne_0 (sign d1) (Z_red_Stein d1 n1)
+        (sign_ne_0 d1 hd1) (Z_red_Stein_l_ne_0 d1 n1 hd1) };
+  have hD2 : π (sign d2 * Z_red_Stein d2 n2 ≠ 0)
+    { refine mul_ne_0 (sign d2) (Z_red_Stein d2 n2)
+        (sign_ne_0 d2 hd2) (Z_red_Stein_l_ne_0 d2 n2 hd2) };
+  have hD3 : π (sign d3 * Z_red_Stein d3 n3 ≠ 0)
+    { refine mul_ne_0 (sign d3) (Z_red_Stein d3 n3)
+        (sign_ne_0 d3 hd3) (Z_red_Stein_l_ne_0 d3 n3 hd3) };
+  refine ᵣdistr*+_div_nz (sign d1 * Z_red_Stein n1 d1) (sign d1 * Z_red_Stein d1 n1)
+                          (sign d2 * Z_red_Stein n2 d2) (sign d2 * Z_red_Stein d2 n2)
+                          (sign d3 * Z_red_Stein n3 d3) (sign d3 * Z_red_Stein d3 n3)
+                          hD1 hD2 hD3
+end;
+
 opaque symbol ᵣdistr*+ x y z : π(x *ᵣ (y ᵣ+ z) = x *ᵣ y ᵣ+ x *ᵣ z) ≔
 begin
-admitted;
+  refine ind_Rat (λ u, `∀ b, `∀ c, (u *ᵣ (b ᵣ+ c)) = ((u *ᵣ b) ᵣ+ (u *ᵣ c))) _;
+  assume n1;
+  induction
+  // d1 = Z0: x = 0/1
+  { assume b c;
+    rewrite (frac_0_den n1);
+    rewrite (zero_mul_l (b ᵣ+ c));
+    rewrite (zero_mul_l b);
+    rewrite (zero_mul_l c);
+    rewrite (ᵣ+_neutral_div_l (0 / 1));
+    reflexivity }
+  // d1 = Zpos p1
+  { assume p1;
+    refine ind_Rat (λ u, `∀ c,
+      (frac n1 (Zpos p1) *ᵣ (u ᵣ+ c))
+        = ((frac n1 (Zpos p1) *ᵣ u) ᵣ+ (frac n1 (Zpos p1) *ᵣ c))) _;
+    assume n2;
+    induction
+    // d2 = Z0: y = 0/1
+    { assume c;
+      rewrite (frac_0_den n2);
+      rewrite (ᵣ+_neutral_div_l c);
+      rewrite (zero_mul_r (frac n1 (Zpos p1)));
+      rewrite (ᵣ+_neutral_div_l (frac n1 (Zpos p1) *ᵣ c));
+      reflexivity }
+    // d2 = Zpos p2
+    { assume p2;
+      refine ind_Rat (λ u,
+        (frac n1 (Zpos p1) *ᵣ (frac n2 (Zpos p2) ᵣ+ u))
+          = ((frac n1 (Zpos p1) *ᵣ frac n2 (Zpos p2)) ᵣ+ (frac n1 (Zpos p1) *ᵣ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zpos p2)));
+        rewrite (zero_mul_r (frac n1 (Zpos p1)));
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zpos p1) *ᵣ frac n2 (Zpos p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zpos p1) n2 (Zpos p2) n3 (Zpos p3)
+          (Zpos≠Z0 p1) (Zpos≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zpos p1) n2 (Zpos p2) n3 (Zneg p3)
+          (Zpos≠Z0 p1) (Zpos≠Z0 p2) (Zneg≠Z0 p3) } }
+    // d2 = Zneg p2
+    { assume p2;
+      refine ind_Rat (λ u,
+        (frac n1 (Zpos p1) *ᵣ (frac n2 (Zneg p2) ᵣ+ u))
+          = ((frac n1 (Zpos p1) *ᵣ frac n2 (Zneg p2)) ᵣ+ (frac n1 (Zpos p1) *ᵣ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zneg p2)));
+        rewrite (zero_mul_r (frac n1 (Zpos p1)));
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zpos p1) *ᵣ frac n2 (Zneg p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zpos p1) n2 (Zneg p2) n3 (Zpos p3)
+          (Zpos≠Z0 p1) (Zneg≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zpos p1) n2 (Zneg p2) n3 (Zneg p3)
+          (Zpos≠Z0 p1) (Zneg≠Z0 p2) (Zneg≠Z0 p3) } } }
+  // d1 = Zneg p1
+  { assume p1;
+    refine ind_Rat (λ u, `∀ c,
+      (frac n1 (Zneg p1) *ᵣ (u ᵣ+ c))
+        = ((frac n1 (Zneg p1) *ᵣ u) ᵣ+ (frac n1 (Zneg p1) *ᵣ c))) _;
+    assume n2;
+    induction
+    { assume c;
+      rewrite (frac_0_den n2);
+      rewrite (ᵣ+_neutral_div_l c);
+      rewrite (zero_mul_r (frac n1 (Zneg p1)));
+      rewrite (ᵣ+_neutral_div_l (frac n1 (Zneg p1) *ᵣ c));
+      reflexivity }
+    { assume p2;
+      refine ind_Rat (λ u,
+        (frac n1 (Zneg p1) *ᵣ (frac n2 (Zpos p2) ᵣ+ u))
+          = ((frac n1 (Zneg p1) *ᵣ frac n2 (Zpos p2)) ᵣ+ (frac n1 (Zneg p1) *ᵣ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zpos p2)));
+        rewrite (zero_mul_r (frac n1 (Zneg p1)));
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zneg p1) *ᵣ frac n2 (Zpos p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zneg p1) n2 (Zpos p2) n3 (Zpos p3)
+          (Zneg≠Z0 p1) (Zpos≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zneg p1) n2 (Zpos p2) n3 (Zneg p3)
+          (Zneg≠Z0 p1) (Zpos≠Z0 p2) (Zneg≠Z0 p3) } }
+    { assume p2;
+      refine ind_Rat (λ u,
+        (frac n1 (Zneg p1) *ᵣ (frac n2 (Zneg p2) ᵣ+ u))
+          = ((frac n1 (Zneg p1) *ᵣ frac n2 (Zneg p2)) ᵣ+ (frac n1 (Zneg p1) *ᵣ u))) _;
+      assume n3;
+      induction
+      { rewrite (frac_0_den n3);
+        rewrite (ᵣ+_neutral_div_r (frac n2 (Zneg p2)));
+        rewrite (zero_mul_r (frac n1 (Zneg p1)));
+        rewrite (ᵣ+_neutral_div_r (frac n1 (Zneg p1) *ᵣ frac n2 (Zneg p2)));
+        reflexivity }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zneg p1) n2 (Zneg p2) n3 (Zpos p3)
+          (Zneg≠Z0 p1) (Zneg≠Z0 p2) (Zpos≠Z0 p3) }
+      { assume p3;
+        refine ᵣdistr*+_nz n1 (Zneg p1) n2 (Zneg p2) n3 (Zneg p3)
+          (Zneg≠Z0 p1) (Zneg≠Z0 p2) (Zneg≠Z0 p3) } } }
+end;
+
