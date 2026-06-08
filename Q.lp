@@ -881,7 +881,560 @@ symbol ᵣ≐: ℚ → ℚ → Comp; notation ᵣ≐ infix 10;
 rule ($n1 / $d1) ᵣ≐ ($n2 / $d2) ↪ $n1 * $d2 ≐ $n2 * $d1;
 
 
-// Zero is absorbing for *ᵣ: 0/1 * x = 0/1 (and symmetric).
+// ============================================================
+// Inequalities on ℚ — directional comparison operators.
+// ============================================================
+// Mirrors Z.lp's pattern: defined via the three-way comparison
+// `ᵣ≐` and the `Comp` predicates `isLt`, `isGt`.
+//
+// For raw fractions n1/d1, n2/d2 (with the normalization rules
+// above forcing denominators to be positive), the definitions
+// reduce to the standard cross-product convention (cf. Coq's
+// `Qle`/`Qlt` in `Stdlib.QArith.QArith_base`):
+//
+//   (n1 / d1) ᵣ≤ (n2 / d2)  ≡  (n1 * d2) ≤ (n2 * d1)
+//   (n1 / d1) ᵣ< (n2 / d2)  ≡  (n1 * d2) < (n2 * d1)
+//   x ᵣ≥ y                  ≡  ¬ (x ᵣ< y)
+//   x ᵣ> y                  ≡  ¬ (x ᵣ≤ y)
+
+symbol ᵣ≤ x y ≔ ¬ istrue (isGt (x ᵣ≐ y));
+notation ᵣ≤ infix 10;
+
+symbol ᵣ< x y ≔ istrue (isLt (x ᵣ≐ y));
+notation ᵣ< infix 10;
+
+symbol ᵣ≥ x y ≔ ¬ (x ᵣ< y);
+notation ᵣ≥ infix 10;
+
+symbol ᵣ> x y ≔ ¬ (x ᵣ≤ y);
+notation ᵣ> infix 10;
+
+// --- Reflexivity / irreflexivity ---
+
+opaque symbol ᵣ≤_refl x : π (x ᵣ≤ x) ≔
+begin
+  refine ind_Rat (λ u, u ᵣ≤ u) _;
+  assume n d;
+  refine ≤_refl ((sign d * Z_red_Stein n d) * (sign d * Z_red_Stein d n))
+end;
+
+opaque symbol ᵣ<_no_refl x : π (¬ (x ᵣ< x)) ≔
+begin
+  refine ind_Rat (λ u, ¬ (u ᵣ< u)) _;
+  assume n d;
+  refine <_no_refl ((sign d * Z_red_Stein n d) * (sign d * Z_red_Stein d n))
+end;
+
+opaque symbol ᵣ≥_refl x : π (x ᵣ≥ x) ≔
+begin
+  assume x;
+  refine ᵣ<_no_refl x
+end;
+
+opaque symbol ᵣ>_no_refl x : π (¬ (x ᵣ> x)) ≔
+begin
+  assume x h;
+  refine h (ᵣ≤_refl x)
+end;
+
+// --- Order relations: < implies ≤, ≥ ⇒ ¬<, > ⇒ ¬≤, < ⇒ ¬≤ (other direction) ---
+
+opaque symbol ᵣ<_≤ x y : π (x ᵣ< y ⇒ x ᵣ≤ y) ≔
+begin
+  refine ind_Rat (λ u, `∀ v, u ᵣ< v ⇒ u ᵣ≤ v) _;
+  assume n1 d1;
+  refine ind_Rat (λ v, ((frac n1 d1) ᵣ< v) ⇒ ((frac n1 d1) ᵣ≤ v)) _;
+  assume n2 d2;
+  refine <_≤ ((sign d1 * Z_red_Stein n1 d1) * (sign d2 * Z_red_Stein d2 n2))
+              ((sign d2 * Z_red_Stein n2 d2) * (sign d1 * Z_red_Stein d1 n1))
+end;
+
+opaque symbol ᵣ≥_¬_< x y : π (x ᵣ≥ y ⇒ ¬ (x ᵣ< y)) ≔
+begin
+  assume x y h; refine h
+end;
+
+opaque symbol ᵣ>_¬_≤ x y : π (x ᵣ> y ⇒ ¬ (x ᵣ≤ y)) ≔
+begin
+  assume x y h; refine h
+end;
+
+// `x ᵣ< y` rules out `y ᵣ≤ x` (strict precludes weak in the other direction).
+opaque symbol ᵣ<_neg_≤ x y : π (x ᵣ< y ⇒ ¬ (y ᵣ≤ x)) ≔
+begin
+  refine ind_Rat (λ u, `∀ v, u ᵣ< v ⇒ ¬ (v ᵣ≤ u)) _;
+  assume n1 d1;
+  refine ind_Rat (λ v, ((frac n1 d1) ᵣ< v) ⇒ ¬ (v ᵣ≤ (frac n1 d1))) _;
+  assume n2 d2;
+  refine <_neg_≤ ((sign d1 * Z_red_Stein n1 d1) * (sign d2 * Z_red_Stein d2 n2))
+                  ((sign d2 * Z_red_Stein n2 d2) * (sign d1 * Z_red_Stein d1 n1))
+end;
+
+// --- Antisymmetry at the cross-product level ---
+// Two raw /-fractions that are mutually ≤ have equal cross-products.
+
+opaque symbol ᵣ≤_antisym_cross n1 d1 n2 d2 :
+    π ((n1 / d1) ᵣ≤ (n2 / d2) ⇒ (n2 / d2) ᵣ≤ (n1 / d1) ⇒ (n1 * d2) = (n2 * d1)) ≔
+begin
+  assume n1 d1 n2 d2;
+  refine ≤_antisym (n1 * d2) (n2 * d1)
+end;
+
+// Equality implies ≤ and ≥ (cf. Coq's `Qle_refl` used via Leibniz).
+opaque symbol ᵣ≤_eq_incl x y : π (x = y ⇒ x ᵣ≤ y) ≔
+begin
+  assume x y heq;
+  rewrite heq;
+  refine ᵣ≤_refl y
+end;
+
+opaque symbol ᵣ≥_eq_incl x y : π (x = y ⇒ x ᵣ≥ y) ≔
+begin
+  assume x y heq;
+  rewrite heq;
+  refine ᵣ≥_refl y
+end;
+
+// Swap the first two factors in a right-associated triple product.
+// Generic ℤ-level helper used both in the inequality theory below and
+// in the ᵣdistr*+ algebra further down.
+opaque symbol *_swap_l a b c : π (a * (b * c) = b * (a * c)) ≔
+begin
+  assume a b c;
+  rewrite left *_assoc a b c;
+  rewrite *_com a b;
+  rewrite *_assoc b a c;
+  reflexivity
+end;
+
+// --- ℤ-level helper: ≤ version of `mul_lt_mono_pos_l` ---
+// Multiplying by a positive integer preserves (and reflects) ≤.
+// Derived from Z.lp's `mul_lt_mono_pos_l` via the `≤_≥` duality:
+// `n ≤ m ⇔ ¬ (m < n)`, then push through the strict bicond.
+opaque symbol mul_le_mono_pos_l p : π (Z0 < p) → Π n m, π (n ≤ m ⇔ n * p ≤ m * p) ≔
+begin
+  assume p Hp n m;
+  apply ∧ᵢ
+  { assume Hnm;
+    refine ∧ₑ₁ (≤_≥ (m * p) (n * p)) _;
+    assume Hltmp;
+    have Hltmn : π (m < n) { refine ∧ₑ₂ (mul_lt_mono_pos_l p Hp m n) Hltmp };
+    refine ∧ₑ₂ (≤_≥ m n) Hnm Hltmn }
+  { assume Hnmp;
+    refine ∧ₑ₁ (≤_≥ m n) _;
+    assume Hltmn;
+    have Hltmp : π (m * p < n * p) { refine ∧ₑ₁ (mul_lt_mono_pos_l p Hp m n) Hltmn };
+    refine ∧ₑ₂ (≤_≥ (m * p) (n * p)) Hnmp Hltmp }
+end;
+
+// Right-multiplication by a positive preserves ≤ (one-directional shorthand).
+opaque symbol mul_le_compat_r a b c : π (Z0 < c) → π (a ≤ b) → π (a * c ≤ b * c) ≔
+begin
+  assume a b c Hc Hab;
+  refine ∧ₑ₁ (mul_le_mono_pos_l c Hc a b) Hab
+end;
+
+// Right-cancellation by a positive reflects ≤.
+opaque symbol mul_le_cancel_r a b c : π (Z0 < c) → π (a * c ≤ b * c) → π (a ≤ b) ≔
+begin
+  assume a b c Hc Hac;
+  refine ∧ₑ₂ (mul_le_mono_pos_l c Hc a b) Hac
+end;
+
+// --- Transitivity of ᵣ≤ on raw /-fractions (positive denominators) ---
+// Mirrors Coq's `Qle_trans` (which assumes `QDen > 0` in its data type).
+// Strategy: multiply each hypothesis by the missing-side positive denominator,
+// chain via Z.lp's `≤_trans`, then cancel the common middle denominator.
+opaque symbol ᵣ≤_trans_div n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) →
+    π ((n1 / d1) ᵣ≤ (n2 / d2) ⇒ (n2 / d2) ᵣ≤ (n3 / d3) ⇒ (n1 / d1) ᵣ≤ (n3 / d3)) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12 H23;
+  // H12 : (n1 * d2) ≤ (n2 * d1)
+  // H23 : (n2 * d3) ≤ (n3 * d2)
+  // Goal: (n1 * d3) ≤ (n3 * d1)
+  refine mul_le_cancel_r (n1 * d3) (n3 * d1) d2 Hd2 _;
+  // Goal: (n1 * d3) * d2 ≤ (n3 * d1) * d2
+  have H12' : π ((n1 * d2) * d3 ≤ (n2 * d1) * d3)
+    { refine mul_le_compat_r (n1 * d2) (n2 * d1) d3 Hd3 H12 };
+  have H23' : π ((n2 * d3) * d1 ≤ (n3 * d2) * d1)
+    { refine mul_le_compat_r (n2 * d3) (n3 * d2) d1 Hd1 H23 };
+  // Reshape H12': (n1*d2)*d3 = (n1*d3)*d2 and (n2*d1)*d3 = (n2*d3)*d1.
+  have R1 : π ((n1 * d2) * d3 = (n1 * d3) * d2)
+    { rewrite *_assoc n1 d2 d3; rewrite *_com d2 d3;
+      rewrite left *_assoc n1 d3 d2; reflexivity };
+  have R2 : π ((n2 * d1) * d3 = (n2 * d3) * d1)
+    { rewrite *_assoc n2 d1 d3; rewrite *_com d1 d3;
+      rewrite left *_assoc n2 d3 d1; reflexivity };
+  have R3 : π ((n3 * d2) * d1 = (n3 * d1) * d2)
+    { rewrite *_assoc n3 d2 d1; rewrite *_com d2 d1;
+      rewrite left *_assoc n3 d1 d2; reflexivity };
+  have H12'' : π ((n1 * d3) * d2 ≤ (n2 * d3) * d1)
+    { rewrite left R1; rewrite left R2; refine H12' };
+  have H23'' : π ((n2 * d3) * d1 ≤ (n3 * d1) * d2)
+    { rewrite left R3; refine H23' };
+  refine ≤_trans ((n1 * d3) * d2) ((n2 * d3) * d1) ((n3 * d1) * d2) H12'' H23''
+end;
+
+// Left-multiplication variants — useful when the multiplier is on the left.
+
+opaque symbol mul_le_compat_l a b c : π (Z0 < c) → π (a ≤ b) → π (c * a ≤ c * b) ≔
+begin
+  assume a b c Hc Hab;
+  rewrite *_com c a;
+  rewrite *_com c b;
+  refine mul_le_compat_r a b c Hc Hab
+end;
+
+opaque symbol mul_le_cancel_l a b c : π (Z0 < c) → π (c * a ≤ c * b) → π (a ≤ b) ≔
+begin
+  assume a b c Hc Hac;
+  refine mul_le_cancel_r a b c Hc _;
+  rewrite *_com a c;
+  rewrite *_com b c;
+  refine Hac
+end;
+
+// --- ℤ-level strict-order helpers (analogous to the ≤ ones above) ---
+
+opaque symbol mul_lt_compat_r a b c : π (Z0 < c) → π (a < b) → π (a * c < b * c) ≔
+begin
+  assume a b c Hc Hab;
+  refine ∧ₑ₁ (mul_lt_mono_pos_l c Hc a b) Hab
+end;
+
+opaque symbol mul_lt_cancel_r a b c : π (Z0 < c) → π (a * c < b * c) → π (a < b) ≔
+begin
+  assume a b c Hc Hac;
+  refine ∧ₑ₂ (mul_lt_mono_pos_l c Hc a b) Hac
+end;
+
+opaque symbol mul_lt_compat_l a b c : π (Z0 < c) → π (a < b) → π (c * a < c * b) ≔
+begin
+  assume a b c Hc Hab;
+  rewrite *_com c a;
+  rewrite *_com c b;
+  refine mul_lt_compat_r a b c Hc Hab
+end;
+
+opaque symbol mul_lt_cancel_l a b c : π (Z0 < c) → π (c * a < c * b) → π (a < b) ≔
+begin
+  assume a b c Hc Hac;
+  refine mul_lt_cancel_r a b c Hc _;
+  rewrite *_com a c;
+  rewrite *_com b c;
+  refine Hac
+end;
+
+// Z.lp has `<_trans_1` (< then ≤) and `<_trans_2` (≤ then <) but no plain `<_trans`.
+// Derive: a < b ⇒ b < c ⇒ a < c via `<_to_≤` + `<_trans_2`.
+opaque symbol <_trans a b c : π (a < b) → π (b < c) → π (a < c) ≔
+begin
+  assume a b c Hab Hbc;
+  refine <_trans_2 a b c (<_to_≤ a b Hab) Hbc
+end;
+
+// --- Strict transitivity of ᵣ< on raw /-fractions (positive denominators) ---
+opaque symbol ᵣ<_trans_div n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) →
+    π ((n1 / d1) ᵣ< (n2 / d2) ⇒ (n2 / d2) ᵣ< (n3 / d3) ⇒ (n1 / d1) ᵣ< (n3 / d3)) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12 H23;
+  refine mul_lt_cancel_r (n1 * d3) (n3 * d1) d2 Hd2 _;
+  have H12' : π ((n1 * d2) * d3 < (n2 * d1) * d3)
+    { refine mul_lt_compat_r (n1 * d2) (n2 * d1) d3 Hd3 H12 };
+  have H23' : π ((n2 * d3) * d1 < (n3 * d2) * d1)
+    { refine mul_lt_compat_r (n2 * d3) (n3 * d2) d1 Hd1 H23 };
+  have R1 : π ((n1 * d2) * d3 = (n1 * d3) * d2)
+    { rewrite *_assoc n1 d2 d3; rewrite *_com d2 d3;
+      rewrite left *_assoc n1 d3 d2; reflexivity };
+  have R2 : π ((n2 * d1) * d3 = (n2 * d3) * d1)
+    { rewrite *_assoc n2 d1 d3; rewrite *_com d1 d3;
+      rewrite left *_assoc n2 d3 d1; reflexivity };
+  have R3 : π ((n3 * d2) * d1 = (n3 * d1) * d2)
+    { rewrite *_assoc n3 d2 d1; rewrite *_com d2 d1;
+      rewrite left *_assoc n3 d1 d2; reflexivity };
+  have H12'' : π ((n1 * d3) * d2 < (n2 * d3) * d1)
+    { rewrite left R1; rewrite left R2; refine H12' };
+  have H23'' : π ((n2 * d3) * d1 < (n3 * d1) * d2)
+    { rewrite left R3; refine H23' };
+  refine <_trans ((n1 * d3) * d2) ((n2 * d3) * d1) ((n3 * d1) * d2) H12'' H23''
+end;
+
+// Mixed transitivity (cf. Coq's `Qle_lt_trans` / `Qlt_le_trans`).
+opaque symbol ᵣ≤_<_trans_div n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) →
+    π ((n1 / d1) ᵣ≤ (n2 / d2) ⇒ (n2 / d2) ᵣ< (n3 / d3) ⇒ (n1 / d1) ᵣ< (n3 / d3)) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12 H23;
+  refine mul_lt_cancel_r (n1 * d3) (n3 * d1) d2 Hd2 _;
+  have H12' : π ((n1 * d2) * d3 ≤ (n2 * d1) * d3)
+    { refine mul_le_compat_r (n1 * d2) (n2 * d1) d3 Hd3 H12 };
+  have H23' : π ((n2 * d3) * d1 < (n3 * d2) * d1)
+    { refine mul_lt_compat_r (n2 * d3) (n3 * d2) d1 Hd1 H23 };
+  have R1 : π ((n1 * d2) * d3 = (n1 * d3) * d2)
+    { rewrite *_assoc n1 d2 d3; rewrite *_com d2 d3;
+      rewrite left *_assoc n1 d3 d2; reflexivity };
+  have R2 : π ((n2 * d1) * d3 = (n2 * d3) * d1)
+    { rewrite *_assoc n2 d1 d3; rewrite *_com d1 d3;
+      rewrite left *_assoc n2 d3 d1; reflexivity };
+  have R3 : π ((n3 * d2) * d1 = (n3 * d1) * d2)
+    { rewrite *_assoc n3 d2 d1; rewrite *_com d2 d1;
+      rewrite left *_assoc n3 d1 d2; reflexivity };
+  have H12'' : π ((n1 * d3) * d2 ≤ (n2 * d3) * d1)
+    { rewrite left R1; rewrite left R2; refine H12' };
+  have H23'' : π ((n2 * d3) * d1 < (n3 * d1) * d2)
+    { rewrite left R3; refine H23' };
+  refine <_trans_2 ((n1 * d3) * d2) ((n2 * d3) * d1) ((n3 * d1) * d2) H12'' H23''
+end;
+
+opaque symbol ᵣ<_≤_trans_div n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) →
+    π ((n1 / d1) ᵣ< (n2 / d2) ⇒ (n2 / d2) ᵣ≤ (n3 / d3) ⇒ (n1 / d1) ᵣ< (n3 / d3)) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12 H23;
+  refine mul_lt_cancel_r (n1 * d3) (n3 * d1) d2 Hd2 _;
+  have H12' : π ((n1 * d2) * d3 < (n2 * d1) * d3)
+    { refine mul_lt_compat_r (n1 * d2) (n2 * d1) d3 Hd3 H12 };
+  have H23' : π ((n2 * d3) * d1 ≤ (n3 * d2) * d1)
+    { refine mul_le_compat_r (n2 * d3) (n3 * d2) d1 Hd1 H23 };
+  have R1 : π ((n1 * d2) * d3 = (n1 * d3) * d2)
+    { rewrite *_assoc n1 d2 d3; rewrite *_com d2 d3;
+      rewrite left *_assoc n1 d3 d2; reflexivity };
+  have R2 : π ((n2 * d1) * d3 = (n2 * d3) * d1)
+    { rewrite *_assoc n2 d1 d3; rewrite *_com d1 d3;
+      rewrite left *_assoc n2 d3 d1; reflexivity };
+  have R3 : π ((n3 * d2) * d1 = (n3 * d1) * d2)
+    { rewrite *_assoc n3 d2 d1; rewrite *_com d2 d1;
+      rewrite left *_assoc n3 d1 d2; reflexivity };
+  have H12'' : π ((n1 * d3) * d2 < (n2 * d3) * d1)
+    { rewrite left R1; rewrite left R2; refine H12' };
+  have H23'' : π ((n2 * d3) * d1 ≤ (n3 * d1) * d2)
+    { rewrite left R3; refine H23' };
+  refine <_trans_1 ((n1 * d3) * d2) ((n2 * d3) * d1) ((n3 * d1) * d2) H12'' H23''
+end;
+
+// --- Positivity of the normalized denominator (d > 0 ⇒ D > 0) ---
+// For `d : ℤ` with `d > 0` (so `d = Zpos p`), the normalized denominator
+// `sign d * Z_red_Stein d n` reduces to a `Zpos _` value, hence is > 0.
+opaque symbol sign_Z_red_Stein_pos d n :
+    π (Z0 < d) → π (Z0 < sign d * Z_red_Stein d n) ≔
+begin
+  induction
+  { assume n h; apply ⊥ₑ; refine h }
+  { assume p; induction
+    { assume h; refine ⊤ᵢ }
+    { assume a h; refine ⊤ᵢ }
+    { assume a h; refine ⊤ᵢ } }
+  { assume p n h; apply ⊥ₑ; refine h }
+end;
+
+// --- A small ℤ-level abstraction: ≤ commutes with multiplying by positives ---
+// If `a * k1 = c * k2` and `b * k1 = d * k2` for positive `k1, k2`, then
+// `a ≤ b ⇔ c ≤ d`. Reduces a ≤-on-fractions bicond to two cross-product
+// equalities + positivity, which is exactly the shape needed for ᵣ≤_frac_iff_cross.
+opaque symbol mul_le_iff_via_pos a b c d k1 k2 :
+    π (Z0 < k1) → π (Z0 < k2) →
+    π (a * k1 = c * k2) → π (b * k1 = d * k2) →
+    π (a ≤ b ⇔ c ≤ d) ≔
+begin
+  assume a b c d k1 k2 Hk1 Hk2 E1 E2;
+  apply ∧ᵢ
+  { assume Hab;
+    refine mul_le_cancel_r c d k2 Hk2 _;
+    rewrite left E1; rewrite left E2;
+    refine mul_le_compat_r a b k1 Hk1 Hab }
+  { assume Hcd;
+    refine mul_le_cancel_r a b k1 Hk1 _;
+    rewrite E1; rewrite E2;
+    refine mul_le_compat_r c d k2 Hk2 Hcd }
+end;
+
+// --- Cross-product characterization of ᵣ≤ on `frac n d` ---
+// For positive denominators, comparison of `frac n1 d1` and `frac n2 d2`
+// in ℚ is equivalent to the natural integer cross-product. The normalized
+// numerator/denominator (N_i, D_i) collapse via two applications of
+// `frac_red_cross` plus a cancellation by `D1 * D2`.
+opaque symbol ᵣ≤_frac_iff_cross n1 d1 n2 d2 :
+    π (Z0 < d1) → π (Z0 < d2) →
+    π (frac n1 d1 ᵣ≤ frac n2 d2 ⇔ n1 * d2 ≤ n2 * d1) ≔
+begin
+  assume n1 d1 n2 d2 Hd1 Hd2;
+  set N1 ≔ sign d1 * Z_red_Stein n1 d1;
+  set D1 ≔ sign d1 * Z_red_Stein d1 n1;
+  set N2 ≔ sign d2 * Z_red_Stein n2 d2;
+  set D2 ≔ sign d2 * Z_red_Stein d2 n2;
+  have R1 : π (N1 * d1 = n1 * D1) { refine frac_red_cross d1 n1 };
+  have R2 : π (N2 * d2 = n2 * D2) { refine frac_red_cross d2 n2 };
+  have HD1 : π (Z0 < D1) { refine sign_Z_red_Stein_pos d1 n1 Hd1 };
+  have HD2 : π (Z0 < D2) { refine sign_Z_red_Stein_pos d2 n2 Hd2 };
+  have Hd1d2 : π (Z0 < d1 * d2)
+    { refine ∧ₑ₂ (<_> Z0 (d1 * d2)) _;
+      refine *_pos_pos d1 d2 (∧ₑ₁ (<_> Z0 d1) Hd1) (∧ₑ₁ (<_> Z0 d2) Hd2) };
+  have HD1D2 : π (Z0 < D1 * D2)
+    { refine ∧ₑ₂ (<_> Z0 (D1 * D2)) _;
+      refine *_pos_pos D1 D2 (∧ₑ₁ (<_> Z0 D1) HD1) (∧ₑ₁ (<_> Z0 D2) HD2) };
+  // E1: (N1*D2)*(d1*d2) = (n1*d2)*(D1*D2)  — by reshaping + R1
+  have E1 : π ((N1 * D2) * (d1 * d2) = (n1 * d2) * (D1 * D2))
+    { rewrite *_assoc N1 D2 (d1 * d2);
+      rewrite *_swap_l D2 d1 d2;
+      rewrite left *_assoc N1 d1 (D2 * d2);
+      rewrite R1;
+      rewrite *_assoc n1 D1 (D2 * d2);
+      rewrite left *_assoc D1 D2 d2;
+      rewrite *_com (D1 * D2) d2;
+      rewrite left *_assoc n1 d2 (D1 * D2);
+      reflexivity };
+  // E2: (N2*D1)*(d1*d2) = (n2*d1)*(D1*D2)  — by reshaping + R2
+  have E2 : π ((N2 * D1) * (d1 * d2) = (n2 * d1) * (D1 * D2))
+    { rewrite *_assoc N2 D1 (d1 * d2);
+      rewrite left *_assoc D1 d1 d2;
+      rewrite *_com (D1 * d1) d2;
+      rewrite left *_assoc N2 d2 (D1 * d1);
+      rewrite R2;
+      rewrite *_assoc n2 D2 (D1 * d1);
+      rewrite left *_assoc D2 D1 d1;
+      rewrite *_com (D2 * D1) d1;
+      rewrite left *_assoc n2 d1 (D2 * D1);
+      rewrite *_com D2 D1;
+      reflexivity };
+  refine mul_le_iff_via_pos (N1 * D2) (N2 * D1) (n1 * d2) (n2 * d1) (d1 * d2) (D1 * D2)
+                              Hd1d2 HD1D2 E1 E2
+end;
+
+// --- Compat lemmas for ᵣ+ (positive denominators) ---
+// `frac n1 d1 ᵣ≤ frac n2 d2` and adding the same `frac n3 d3` preserves ≤.
+// The proof goes through `ᵣ≤_frac_iff_cross` to reduce the (post-ᵣ+) ᵣ≤ to
+// the integer cross-product inequality
+//   `(n1*d3 + n3*d1)*(d2*d3) ≤ (n2*d3 + n3*d2)*(d1*d3)`
+// which after distributing both sides has matching "n3 cross terms" (equal
+// by commutativity) and a difference proportional to `(n1*d2 − n2*d1)*d3²`.
+// Apply `≤_compat_add` to peel off the common term, then `mul_le_compat_r`
+// with the hypothesis `n1*d2 ≤ n2*d1` and `d3*d3 > 0`.
+opaque symbol ᵣ+_le_compat_div_r n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) →
+    π ((n1 / d1) ᵣ≤ (n2 / d2)
+       ⇒ ((n1 / d1) ᵣ+ (n3 / d3)) ᵣ≤ ((n2 / d2) ᵣ+ (n3 / d3))) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12;
+  // H12 unfolds (definitionally) to `(n1 * d2) ≤ (n2 * d1)`.
+  have Hd1d3 : π (Z0 < d1 * d3)
+    { refine ∧ₑ₂ (<_> Z0 (d1 * d3)) _;
+      refine *_pos_pos d1 d3 (∧ₑ₁ (<_> Z0 d1) Hd1) (∧ₑ₁ (<_> Z0 d3) Hd3) };
+  have Hd2d3 : π (Z0 < d2 * d3)
+    { refine ∧ₑ₂ (<_> Z0 (d2 * d3)) _;
+      refine *_pos_pos d2 d3 (∧ₑ₁ (<_> Z0 d2) Hd2) (∧ₑ₁ (<_> Z0 d3) Hd3) };
+  have Hd3d3 : π (Z0 < d3 * d3)
+    { refine ∧ₑ₂ (<_> Z0 (d3 * d3)) _;
+      refine *_pos_pos d3 d3 (∧ₑ₁ (<_> Z0 d3) Hd3) (∧ₑ₁ (<_> Z0 d3) Hd3) };
+  refine ∧ₑ₂ (ᵣ≤_frac_iff_cross
+                ((n1 * d3) + (n3 * d1)) (d1 * d3)
+                ((n2 * d3) + (n3 * d2)) (d2 * d3) Hd1d3 Hd2d3) _;
+  // Goal: ((n1*d3 + n3*d1) * (d2*d3)) ≤ ((n2*d3 + n3*d2) * (d1*d3))
+  // Distribute LHS:
+  rewrite *_com ((n1 * d3) + (n3 * d1)) (d2 * d3);
+  rewrite *_distr_+ (d2 * d3) (n1 * d3) (n3 * d1);
+  // Distribute RHS:
+  rewrite *_com ((n2 * d3) + (n3 * d2)) (d1 * d3);
+  rewrite *_distr_+ (d1 * d3) (n2 * d3) (n3 * d2);
+  // Goal: (d2*d3)*(n1*d3) + (d2*d3)*(n3*d1) ≤ (d1*d3)*(n2*d3) + (d1*d3)*(n3*d2)
+  // Show the two "right summands" are equal (commutativity of factors):
+  have Beq : π ((d2 * d3) * (n3 * d1) = (d1 * d3) * (n3 * d2))
+    { rewrite *_assoc d2 d3 (n3 * d1);
+      rewrite *_swap_l d3 n3 d1;
+      rewrite *_swap_l d2 n3 (d3 * d1);
+      rewrite *_swap_l d2 d3 d1;
+      rewrite *_com d2 d1;
+      rewrite *_assoc d1 d3 (n3 * d2);
+      rewrite *_swap_l d3 n3 d2;
+      rewrite *_swap_l d1 n3 (d3 * d2);
+      rewrite *_swap_l d1 d3 d2;
+      reflexivity };
+  rewrite Beq;
+  // Goal: (d2*d3)*(n1*d3) + (d1*d3)*(n3*d2) ≤ (d1*d3)*(n2*d3) + (d1*d3)*(n3*d2)
+  refine ≤_compat_add ((d2 * d3) * (n1 * d3)) ((d1 * d3) * (n2 * d3))
+                       ((d1 * d3) * (n3 * d2)) _;
+  // Goal: (d2*d3)*(n1*d3) ≤ (d1*d3)*(n2*d3)
+  // Reshape both sides to expose (n1*d2)*(d3*d3) and (n2*d1)*(d3*d3):
+  have Aeq : π ((d2 * d3) * (n1 * d3) = (n1 * d2) * (d3 * d3))
+    { rewrite *_assoc d2 d3 (n1 * d3);
+      rewrite *_swap_l d3 n1 d3;
+      rewrite *_swap_l d2 n1 (d3 * d3);
+      rewrite left *_assoc n1 d2 (d3 * d3);
+      reflexivity };
+  have Ceq : π ((d1 * d3) * (n2 * d3) = (n2 * d1) * (d3 * d3))
+    { rewrite *_assoc d1 d3 (n2 * d3);
+      rewrite *_swap_l d3 n2 d3;
+      rewrite *_swap_l d1 n2 (d3 * d3);
+      rewrite left *_assoc n2 d1 (d3 * d3);
+      reflexivity };
+  rewrite Aeq;
+  rewrite Ceq;
+  refine mul_le_compat_r (n1 * d2) (n2 * d1) (d3 * d3) Hd3d3 H12
+end;
+
+// Left variant — derived from the right variant via ᵣ+_com_div.
+opaque symbol ᵣ+_le_compat_div_l n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) →
+    π ((n1 / d1) ᵣ≤ (n2 / d2)
+       ⇒ ((n3 / d3) ᵣ+ (n1 / d1)) ᵣ≤ ((n3 / d3) ᵣ+ (n2 / d2))) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12;
+  rewrite (ᵣ+_com_div n3 d3 n1 d1);
+  rewrite (ᵣ+_com_div n3 d3 n2 d2);
+  refine ᵣ+_le_compat_div_r n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 H12
+end;
+
+// --- Compat lemma for *ᵣ (positive multiplier, positive denominators) ---
+// `frac n1 d1 ᵣ≤ frac n2 d2 → 0 < n3 → frac n1 d1 *ᵣ frac n3 d3 ᵣ≤ frac n2 d2 *ᵣ frac n3 d3`
+// After *ᵣ rule fires, cross-product (n1*n3)*(d2*d3) ≤ (n2*n3)*(d1*d3) reshapes
+// (commute n3 with d2, d1) to (n1*d2)*(n3*d3) ≤ (n2*d1)*(n3*d3); close with
+// `mul_le_compat_r` on `H12 : n1*d2 ≤ n2*d1` and `n3*d3 > 0`.
+opaque symbol ᵣ*_le_compat_pos_div_r n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) → π (Z0 < n3) →
+    π ((n1 / d1) ᵣ≤ (n2 / d2)
+       ⇒ ((n1 / d1) *ᵣ (n3 / d3)) ᵣ≤ ((n2 / d2) *ᵣ (n3 / d3))) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 Hn3 H12;
+  have Hd1d3 : π (Z0 < d1 * d3)
+    { refine ∧ₑ₂ (<_> Z0 (d1 * d3)) _;
+      refine *_pos_pos d1 d3 (∧ₑ₁ (<_> Z0 d1) Hd1) (∧ₑ₁ (<_> Z0 d3) Hd3) };
+  have Hd2d3 : π (Z0 < d2 * d3)
+    { refine ∧ₑ₂ (<_> Z0 (d2 * d3)) _;
+      refine *_pos_pos d2 d3 (∧ₑ₁ (<_> Z0 d2) Hd2) (∧ₑ₁ (<_> Z0 d3) Hd3) };
+  have Hn3d3 : π (Z0 < n3 * d3)
+    { refine ∧ₑ₂ (<_> Z0 (n3 * d3)) _;
+      refine *_pos_pos n3 d3 (∧ₑ₁ (<_> Z0 n3) Hn3) (∧ₑ₁ (<_> Z0 d3) Hd3) };
+  refine ∧ₑ₂ (ᵣ≤_frac_iff_cross (n1 * n3) (d1 * d3) (n2 * n3) (d2 * d3)
+                                  Hd1d3 Hd2d3) _;
+  // Goal: (n1*n3) * (d2*d3) ≤ (n2*n3) * (d1*d3)
+  have Aeq : π ((n1 * n3) * (d2 * d3) = (n1 * d2) * (n3 * d3))
+    { rewrite *_assoc n1 n3 (d2 * d3);
+      rewrite *_swap_l n3 d2 d3;
+      rewrite left *_assoc n1 d2 (n3 * d3);
+      reflexivity };
+  have Ceq : π ((n2 * n3) * (d1 * d3) = (n2 * d1) * (n3 * d3))
+    { rewrite *_assoc n2 n3 (d1 * d3);
+      rewrite *_swap_l n3 d1 d3;
+      rewrite left *_assoc n2 d1 (n3 * d3);
+      reflexivity };
+  rewrite Aeq;
+  rewrite Ceq;
+  refine mul_le_compat_r (n1 * d2) (n2 * d1) (n3 * d3) Hn3d3 H12
+end;
+
+// Left variant for *ᵣ — derived from the right variant via *ᵣ_com_div.
+opaque symbol ᵣ*_le_compat_pos_div_l n1 d1 n2 d2 n3 d3 :
+    π (Z0 < d1) → π (Z0 < d2) → π (Z0 < d3) → π (Z0 < n3) →
+    π ((n1 / d1) ᵣ≤ (n2 / d2)
+       ⇒ ((n3 / d3) *ᵣ (n1 / d1)) ᵣ≤ ((n3 / d3) *ᵣ (n2 / d2))) ≔
+begin
+  assume n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 Hn3 H12;
+  rewrite (*ᵣ_com_div n3 d3 n1 d1);
+  rewrite (*ᵣ_com_div n3 d3 n2 d2);
+  refine ᵣ*_le_compat_pos_div_r n1 d1 n2 d2 n3 d3 Hd1 Hd2 Hd3 Hn3 H12
+end;
+
 opaque symbol zero_mul_l x : π ((0 / 1) *ᵣ x = (0 / 1)) ≔
 begin
   refine ind_Rat (λ u, ((0 / 1) *ᵣ u) = (0 / 1)) _;
@@ -896,26 +1449,6 @@ begin
   assume x;
   rewrite (ᵣ*_com x (0 / 1));
   refine zero_mul_l x
-end;
-
-// Distributivity of *ᵣ over ᵣ+. The structural reduction (case-bash on the
-// denominators d1,d2,d3) is straightforward — degenerate cases use
-// `0_mul`/`mul_0` (absorbing 0/1) and the ᵣ+ neutral lemmas. The all-nonzero
-// leaf reduces to a cross-product polynomial identity in n_i, d_i and the
-// Z_red_Stein normalizations, requiring ~80 lines of careful tree-reshaping
-// rewrites of comparable scale to ᵣ+_assoc_div's algebra (and using
-// `frac_red_cross` three times to eliminate the normalizations). Left
-// admitted; the heart is well-understood and reduces to the polynomial
-// identity n1*(n2*d3+n3*d2)*R23*R12*R13 = (sum of two monomials after
-// distributing the RHS), which holds modulo commutativity.
-// Swap the first two factors in a right-associated triple product.
-opaque symbol *_swap_l a b c : π (a * (b * c) = b * (a * c)) ≔
-begin
-  assume a b c;
-  rewrite left *_assoc a b c;
-  rewrite *_com a b;
-  rewrite *_assoc b a c;
-  reflexivity
 end;
 
 opaque symbol ᵣdistr*+_div_nz n1 d1 n2 d2 n3 d3
