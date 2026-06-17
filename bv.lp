@@ -2558,10 +2558,158 @@ opaque symbol bitblast_xnor [n : τ nat] (x y : BV n) :
   π (bvxnor x y = bbT n (zip_with bb_iff (bits_of x) (bits_of y))) ≔
 begin admit end;
 
-// Rule 101: bitblast_eq — TODO: real proof (currently admitted).
-opaque symbol bitblast_eq [n : τ nat] (x y : BV n) :
-  π (bveq x y = all bb_id (zip_with bb_iff (bits_of x) (bits_of y))) ≔
-begin admit end;
+// ----------------------------------------------------------------------
+// Real proof of Rule 101 (bitblast_eq)
+// ----------------------------------------------------------------------
+// `bveq` is the SMT-LIB value-equality `isEq (x ≐ y)` (comparing the ℤ
+// representatives), and the rule expands it to the pointwise `bb_iff` of
+// the operands' bit-lists, folded with `all bb_id`. The two agree exactly
+// when the representatives are canonical (in [0, 2ⁿ)); for non-canonical
+// representatives `bveq` compares raw integers while the bit-list only
+// reads the low n bits, so the equation is false in general (e.g.
+// MVBV 4 0 vs MVBV 4 16). We therefore prove it under the canonicality
+// hypotheses 0 ≤ v < 2ⁿ on both operands — exactly the invariant the
+// ρ-rule maintains, so the statement covers every reachable bitvector.
+
+// (e1) bb_iff b b = true : every bit agrees with itself.
+opaque symbol bb_iff_refl (b : 𝔹) : π (bb_iff b b = true) ≔
+begin
+  induction { reflexivity } { reflexivity }
+end;
+
+// (e2) bb_iff a b = true ⇒ a = b : `bb_iff` reflects boolean equality.
+opaque symbol bb_iff_true_eq (a b : 𝔹) : π (bb_iff a b = true) → π (a = b) ≔
+begin
+  induction
+  { induction { assume H; reflexivity } { assume H; apply ⊥ₑ (false≠true H) } }
+  { induction { assume H; refine H } { assume H; reflexivity } }
+end;
+
+// (e3) `all bb_id (c ⸬ rest)` reduces to `if c (all bb_id rest) false`; if
+// the whole thing is `true` then the head `c` is `true` …
+opaque symbol if_b_X_false_b (b X : 𝔹) : π (if b X false = true) → π (b = true) ≔
+begin
+  induction { assume X H; reflexivity } { assume X H; refine H }
+end;
+
+// … and the tail `X` is `true`.
+opaque symbol if_b_X_false_X (b X : 𝔹) : π (if b X false = true) → π (X = true) ≔
+begin
+  induction { assume X H; refine H } { assume X H; apply ⊥ₑ (false≠true H) }
+end;
+
+// (e4) isEq c = true ⇒ c = Eq.
+opaque symbol isEq_true_Eq (c : Comp) : π (isEq c = true) → π (c = Eq) ≔
+begin
+  induction
+  { assume H; reflexivity }
+  { assume H; apply ⊥ₑ (false≠true H) }
+  { assume H; apply ⊥ₑ (false≠true H) }
+end;
+
+// (e5) all bits agree with themselves: the `bveq x x = true` direction.
+opaque symbol all_iff_refl (L : 𝕃 bool) :
+  π (all bb_id (zip_with bb_iff L L) = true) ≔
+begin
+  induction
+  { reflexivity }
+  { assume b rest IH;
+    refine ind_𝔹_eq
+      (λ bb, all bb_id (zip_with bb_iff (bb ⸬ rest) (bb ⸬ rest)) = true)
+      b _ _
+    { assume Hbt; rewrite Hbt; refine IH }
+    { assume Hbf; rewrite Hbf; refine IH } }
+end;
+
+// (e6) The arithmetic core: if every one of the n low bits of vx and vy
+// agrees, then vx and vy are congruent mod 2ⁿ. Induction on n, mirroring
+// `bitwise_arith_eq_bits`: at each step the head bits must agree (so the
+// `if`-summands of `mod_pow2_succ_decompose` coincide) and the IH gives
+// the lower-order congruence. Needs vx, vy ≥ 0 so that the bit reading
+// (`testbit ∘ to_nat`) matches the modular value.
+opaque symbol bits_eq_mod (n : τ nat) (vx vy : τ int)
+  (hx : π (Z0 ≤ vx)) (hy : π (Z0 ≤ vy)) :
+  π (all bb_id (zip_with bb_iff (bits_of_n n vx) (bits_of_n n vy)) = true)
+  → π (modulo vx (2 ^ to_int n) = modulo vy (2 ^ to_int n)) ≔
+begin
+  induction
+  { assume vx vy hx hy Hall;
+    change π (modulo vx 1 = modulo vy 1);
+    rewrite modulo_one vx;
+    rewrite modulo_one vy;
+    reflexivity }
+  { assume k IH vx vy hx hy Hall;
+    have Hb : π (bb_iff (testbit (to_nat vx) k) (testbit (to_nat vy) k) = true)
+      { refine if_b_X_false_b
+          (bb_iff (testbit (to_nat vx) k) (testbit (to_nat vy) k))
+          (all bb_id (zip_with bb_iff (bits_of_n k vx) (bits_of_n k vy)))
+          Hall };
+    have Hrest : π (all bb_id (zip_with bb_iff (bits_of_n k vx) (bits_of_n k vy)) = true)
+      { refine if_b_X_false_X
+          (bb_iff (testbit (to_nat vx) k) (testbit (to_nat vy) k))
+          (all bb_id (zip_with bb_iff (bits_of_n k vx) (bits_of_n k vy)))
+          Hall };
+    have Htb : π (testbit (to_nat vx) k = testbit (to_nat vy) k)
+      { refine bb_iff_true_eq (testbit (to_nat vx) k) (testbit (to_nat vy) k) Hb };
+    have Hmodk : π (modulo vx (2 ^ to_int k) = modulo vy (2 ^ to_int k))
+      { refine IH vx vy hx hy Hrest };
+    rewrite mod_pow2_succ_decompose vx k hx;
+    rewrite mod_pow2_succ_decompose vy k hy;
+    rewrite Htb;
+    rewrite Hmodk;
+    reflexivity }
+end;
+
+// Rule 101: bitblast_eq — for canonical operands vx, vy ∈ [0, 2ⁿ), the
+// SMT-LIB value-equality `bveq = isEq (vx ≐ vy)` equals the pointwise
+// `bb_iff` of their bit-lists. Case-split on `isEq (vx ≐ vy)`:
+//   • true  ⇒ vx = vy (≐_decides), so the lists coincide and `all_iff_refl`
+//             gives the bit-list `true`;
+//   • false ⇒ vx ≠ vy; if the bit-list were `true`, `bits_eq_mod` plus
+//             canonicality (`mod_idempotent`) would force vx = vy — absurd,
+//             so the bit-list is `false` too.
+opaque symbol bitblast_eq (n : τ nat) (vx vy : τ int)
+  (hx0 : π (Z0 ≤ vx)) (hx1 : π (vx < (2 ^ to_int n)))
+  (hy0 : π (Z0 ≤ vy)) (hy1 : π (vy < (2 ^ to_int n))) :
+  π (bveq (MVBV n vx) (MVBV n vy)
+     = all bb_id (zip_with bb_iff (bits_of (MVBV n vx)) (bits_of (MVBV n vy)))) ≔
+begin
+  assume n vx vy hx0 hx1 hy0 hy1;
+  refine ind_𝔹_eq
+    (λ b, b = all bb_id (zip_with bb_iff (bits_of_n n vx) (bits_of_n n vy)))
+    (isEq (vx ≐ vy)) _ _
+  // ----- isEq (vx ≐ vy) = true: the operands are equal -----
+  { assume Htrue;
+    rewrite Htrue;
+    have HEq : π (vx ≐ vy = Eq) { refine isEq_true_Eq (vx ≐ vy) Htrue };
+    have Hvxy : π (vx = vy) { refine ≐_decides vx vy HEq };
+    rewrite Hvxy;
+    symmetry;
+    refine all_iff_refl (bits_of_n n vy) }
+  // ----- isEq (vx ≐ vy) = false: the operands differ -----
+  { assume Hfalse;
+    rewrite Hfalse;
+    have Hneq : π (vx ≠ vy)
+      { assume He;
+        have H1 : π (isEq (vx ≐ vy) = true)
+          { rewrite He; rewrite ≐_Eq vy; reflexivity };
+        refine true≠false (ind_eq (eq_sym H1) (λ z, z = false) Hfalse) };
+    refine ind_𝔹_eq (λ r, false = r)
+      (all bb_id (zip_with bb_iff (bits_of_n n vx) (bits_of_n n vy))) _ _
+    // bit-list = true would contradict vx ≠ vy
+    { assume Hr;
+      have Hmod : π (modulo vx (2 ^ to_int n) = modulo vy (2 ^ to_int n))
+        { refine bits_eq_mod n vx vy hx0 hy0 Hr };
+      have Hcx : π (modulo vx (2 ^ to_int n) = vx)
+        { refine mod_idempotent vx (2 ^ to_int n) hx0 hx1 };
+      have Hcy : π (modulo vy (2 ^ to_int n) = vy)
+        { refine mod_idempotent vy (2 ^ to_int n) hy0 hy1 };
+      have Hvxy : π (vx = vy)
+        { rewrite left Hcx; rewrite left Hcy; refine Hmod };
+      refine ⊥ₑ (Hneq Hvxy) }
+    // bit-list = false: matches
+    { assume Hr; rewrite Hr; reflexivity } }
+end;
 
 // Rule 99: bitblast_concat — concatenation = list append in MSB-first form.
 opaque symbol bitblast_concat [n m : τ nat] (x : BV n) (y : BV m) :
