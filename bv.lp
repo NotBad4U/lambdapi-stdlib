@@ -400,9 +400,12 @@ begin
     reflexivity }
 end;
 
-opaque symbol size_zip_with_bb_and (n : ℕ) (vx vy : τ int) :
-  π (size (zip_with bb_and (bits_of_n n vx) (bits_of_n n vy)) = n) ≔
+// Size of a zip_with over two `bits_of_n` lists of equal length — generic
+// over the combining function `f`, since `zip_with` and `size` are.
+opaque symbol size_zip_with_bits (f : 𝔹 → 𝔹 → 𝔹) (n : ℕ) (vx vy : τ int) :
+  π (size (zip_with f (bits_of_n n vx) (bits_of_n n vy)) = n) ≔
 begin
+  assume f;
   induction
   { assume vx vy; reflexivity }
   { assume k IH vx vy;
@@ -2337,59 +2340,70 @@ begin
       H0X HposM HRnn Hr_lt_f HeqX_f2 }
 end;
 
-// (3) The arithmetic key lemma.
-opaque symbol bvand_arith_eq_bits (n : τ nat) (vx vy : τ int) :
-  π (modulo (to_int ((to_nat vx) && (to_nat vy))) (2 ^ (to_int n))
-   = modulo (bbterm_acc (zip_with bb_and (bits_of_n n vx) (bits_of_n n vy)) 0)
+// (3) The arithmetic key lemma — abstracted over the bitwise operation.
+// Given a Nat-level binary op `natop`, a Bool-level op `boolop`, and a
+// `spec` connecting them at every bit position
+//   testbit (natop a b) k = boolop (testbit a k) (testbit b k),
+// the canonical value of `natop` (mod 2ⁿ) coincides with the bit-blasted
+// list `zip_with boolop (bits_of_n n vx) (bits_of_n n vy)`. Everything in
+// the proof except `spec` and `size_zip_with_bits` is bit-agnostic, so the
+// AND/OR/XOR instances below are one-liners.
+opaque symbol bitwise_arith_eq_bits
+  (natop : ℕ → ℕ → ℕ) (boolop : 𝔹 → 𝔹 → 𝔹)
+  (spec : Π a b k, π (testbit (natop a b) k = boolop (testbit a k) (testbit b k)))
+  (n : τ nat) (vx vy : τ int) :
+  π (modulo (to_int (natop (to_nat vx) (to_nat vy))) (2 ^ (to_int n))
+   = modulo (bbterm_acc (zip_with boolop (bits_of_n n vx) (bits_of_n n vy)) 0)
             (2 ^ (to_int n))) ≔
 begin
+  assume natop boolop spec;
   induction
   { assume vx vy;
-    change π (modulo (to_int ((to_nat vx) && (to_nat vy))) 1 = modulo 0 1);
-    rewrite modulo_one (to_int ((to_nat vx) && (to_nat vy)));
+    change π (modulo (to_int (natop (to_nat vx) (to_nat vy))) 1 = modulo 0 1);
+    rewrite modulo_one (to_int (natop (to_nat vx) (to_nat vy)));
     rewrite modulo_one 0;
     reflexivity }
   { assume k IH vx vy;
     // STEP 1: Decompose LHS via mod_pow2_succ_decompose, then expand.
-    have HposY : π (Z0 ≤ to_int ((to_nat vx) && (to_nat vy)))
-      { refine to_int_nonneg ((to_nat vx) && (to_nat vy)) };
-    rewrite mod_pow2_succ_decompose (to_int ((to_nat vx) && (to_nat vy))) k HposY;
-    rewrite to_nat_to_int_id ((to_nat vx) && (to_nat vy));
-    rewrite land_spec (to_nat vx) (to_nat vy) k;
+    have HposY : π (Z0 ≤ to_int (natop (to_nat vx) (to_nat vy)))
+      { refine to_int_nonneg (natop (to_nat vx) (to_nat vy)) };
+    rewrite mod_pow2_succ_decompose (to_int (natop (to_nat vx) (to_nat vy))) k HposY;
+    rewrite to_nat_to_int_id (natop (to_nat vx) (to_nat vy));
+    rewrite spec (to_nat vx) (to_nat vy) k;
     rewrite IH vx vy;
-    // STEP 2: Establish bounds on `bbterm_acc L 0` (where L = zip_with bb_and ...).
-    have Hsize : π (size (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) = k)
-      { refine size_zip_with_bb_and k vx vy };
-    have Hbtm_nn : π (Z0 ≤ bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
-      { refine bbterm_acc_nonneg (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) };
-    have Hbtm_lt_size : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
-                         < pow2_nat (size (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy))))
-      { refine bbterm_acc_lt_pow2 (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) };
-    have Hbtm_lt_pn : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+    // STEP 2: Establish bounds on `bbterm_acc L 0` (where L = zip_with boolop ...).
+    have Hsize : π (size (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) = k)
+      { refine size_zip_with_bits boolop k vx vy };
+    have Hbtm_nn : π (Z0 ≤ bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
+      { refine bbterm_acc_nonneg (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) };
+    have Hbtm_lt_size : π (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
+                         < pow2_nat (size (zip_with boolop (bits_of_n k vx) (bits_of_n k vy))))
+      { refine bbterm_acc_lt_pow2 (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) };
+    have Hbtm_lt_pn : π (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
                        < pow2_nat k)
       { refine ind_eq (eq_sym Hsize)
-          (λ z, bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < pow2_nat z)
+          (λ z, bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0 < pow2_nat z)
           Hbtm_lt_size };
-    have Hbtm_lt : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+    have Hbtm_lt : π (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
                     < (2 ^ (to_int k)))
       { refine ind_eq (eq_sym (pow2_nat_eq k))
-          (λ z, bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < z)
+          (λ z, bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0 < z)
           Hbtm_lt_pn };
     // STEP 3: Strip the inner modulo on LHS via mod_idempotent.
-    rewrite mod_idempotent (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+    rewrite mod_idempotent (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
       (2 ^ (to_int k)) Hbtm_nn Hbtm_lt;
-    // STEP 4: Case-split on b = testbit (to_nat vx) k and testbit (to_nat vy) k.
+    // STEP 4: Case-split on b = boolop (testbit vx k) (testbit vy k).
     refine ind_𝔹_eq
       (λ bv, (if bv (2 ^ (to_int k)) Z0)
-             + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
-           = modulo (bbterm_acc (bv ⸬ zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+             + bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
+           = modulo (bbterm_acc (bv ⸬ zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
                     (2 ^ (to_int (k +1))))
-      ((testbit (to_nat vx) k) and (testbit (to_nat vy) k))
+      (boolop (testbit (to_nat vx) k) (testbit (to_nat vy) k))
       _ _
     // ------ b = true: bbterm_acc (true :: L) 0 = pow2_nat k + bbterm_acc L 0 ------
     { assume Hbt;
       rewrite Hbt;
-      rewrite bbterm_acc_true_zero (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy));
+      rewrite bbterm_acc_true_zero (zip_with boolop (bits_of_n k vx) (bits_of_n k vy));
       rewrite Hsize;
       rewrite pow2_nat_eq k;
       // Goal:  2^k + bbterm_acc L 0  =  modulo (2^k + bbterm_acc L 0) (2^(k+1))
@@ -2397,22 +2411,22 @@ begin
       // Goal (after symmetry):  modulo (2^k + bbterm_acc L 0) (2^(k+1)) = 2^k + bbterm_acc L 0
       // Bounds for mod_idempotent.
       have H_sum_nn : π (Z0 ≤ (2 ^ (to_int k))
-                          + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+                          + bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
         { refine ≤_compat_≤ (2 ^ (to_int k))
-            (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+            (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
             (<_≤ Z0 (2 ^ (to_int k)) (pow2_to_int_pos k))
             Hbtm_nn };
       // 2^k + bbterm_acc L 0 < 2^k + 2^k:  by <_compat_add Hbtm_lt and +_com.
-      have HsumLT_swap : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+      have HsumLT_swap : π (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
                             + (2 ^ (to_int k))
                           < (2 ^ (to_int k)) + (2 ^ (to_int k)))
-        { refine <_compat_add (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+        { refine <_compat_add (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
                               (2 ^ (to_int k)) (2 ^ (to_int k)) Hbtm_lt };
       have HsumLT : π ((2 ^ (to_int k))
-                       + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                       + bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
                      < (2 ^ (to_int k)) + (2 ^ (to_int k)))
         { refine ind_eq (eq_sym (+_com
-              (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+              (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
               (2 ^ (to_int k))))
             (λ z, z < (2 ^ (to_int k)) + (2 ^ (to_int k)))
             HsumLT_swap };
@@ -2422,19 +2436,19 @@ begin
             (λ z, z = (2 ^ (to_int (k +1))))
             (eq_sym (pow2_succ k)) };
       have H_sum_lt : π ((2 ^ (to_int k))
-                         + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+                         + bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
                        < (2 ^ (to_int (k +1))))
         { refine ind_eq (eq_sym Hdouble)
             (λ z, (2 ^ (to_int k))
-                  + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0 < z)
+                  + bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0 < z)
             HsumLT };
       refine mod_idempotent
-        ((2 ^ (to_int k)) + bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+        ((2 ^ (to_int k)) + bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
         (2 ^ (to_int (k +1))) H_sum_nn H_sum_lt }
     // ------ b = false: bbterm_acc (false :: L) 0 = bbterm_acc L 0 ------
     { assume Hbf;
       rewrite Hbf;
-      rewrite bbterm_acc_false_zero (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy));
+      rewrite bbterm_acc_false_zero (zip_with boolop (bits_of_n k vx) (bits_of_n k vy));
       // Goal:  bbterm_acc L 0  =  modulo (bbterm_acc L 0) (2^(k+1))
       symmetry;
       // N ≤ M = 2*N (since N > 0 and M = 2*N).
@@ -2449,17 +2463,39 @@ begin
           refine ind_eq (eq_sym Hdouble_f)
             (λ z, (2 ^ (to_int k)) ≤ z)
             HsumGE };
-      have H_lt_succ : π (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0
+      have H_lt_succ : π (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0
                        < (2 ^ (to_int (k +1))))
         { refine <_trans_1
-            (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+            (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
             (2 ^ (to_int k))
             (2 ^ (to_int (k +1)))
             Hbtm_lt
             HN_le_M };
       refine mod_idempotent
-        (bbterm_acc (zip_with bb_and (bits_of_n k vx) (bits_of_n k vy)) 0)
+        (bbterm_acc (zip_with boolop (bits_of_n k vx) (bits_of_n k vy)) 0)
         (2 ^ (to_int (k +1))) Hbtm_nn H_lt_succ } }
+end;
+
+// (3-and) bvand_arith_eq_bits — the AND instance: natop = `&&`,
+// boolop = bb_and, spec = land_spec.
+opaque symbol bvand_arith_eq_bits (n : τ nat) (vx vy : τ int) :
+  π (modulo (to_int ((to_nat vx) && (to_nat vy))) (2 ^ (to_int n))
+   = modulo (bbterm_acc (zip_with bb_and (bits_of_n n vx) (bits_of_n n vy)) 0)
+            (2 ^ (to_int n))) ≔
+begin
+  assume n vx vy;
+  refine bitwise_arith_eq_bits (&&) bb_and land_spec n vx vy
+end;
+
+// (2-or) bvor_arith_eq_bits — the OR instance: natop = `⎪⎪`,
+// boolop = bb_or, spec = lor_spec.
+opaque symbol bvor_arith_eq_bits (n : τ nat) (vx vy : τ int) :
+  π (modulo (to_int ((to_nat vx) ⎪⎪ (to_nat vy))) (2 ^ (to_int n))
+   = modulo (bbterm_acc (zip_with bb_or (bits_of_n n vx) (bits_of_n n vy)) 0)
+            (2 ^ (to_int n))) ≔
+begin
+  assume n vx vy;
+  refine bitwise_arith_eq_bits (⎪⎪) bb_or lor_spec n vx vy
 end;
 
 // (3) bitblast_and itself.  Structural proof on top of the two pieces
@@ -2479,15 +2515,43 @@ begin
   refine feq (MVBV n) (bvand_arith_eq_bits n vx vy)
 end;
 
-// Rule 108: bitblast_or — TODO: real proof (currently admitted).
+// Rule 108: bitblast_or — structural proof mirroring bitblast_and, on top
+// of bvor_arith_eq_bits.
 opaque symbol bitblast_or [n : τ nat] (x y : BV n) :
   π (bvor x y = bbT n (zip_with bb_or (bits_of x) (bits_of y))) ≔
-begin admit end;
+begin
+  assume n x y;
+  refine BV_elim (λ z, bvor z y = bbT n (zip_with bb_or (bits_of z) (bits_of y))) _ x;
+  assume vx;
+  refine BV_elim
+    (λ z, bvor (MVBV n vx) z = bbT n (zip_with bb_or (bits_of (MVBV n vx)) (bits_of z))) _ y;
+  assume vy;
+  refine feq (MVBV n) (bvor_arith_eq_bits n vx vy)
+end;
 
-// Rule 109: bitblast_xor — TODO: real proof (currently admitted).
+// (2-xor) bvxor_arith_eq_bits — the XOR instance: natop = `Stdlib.Nat.xor`,
+// boolop = bb_xor, spec = xor_spec.
+opaque symbol bvxor_arith_eq_bits (n : τ nat) (vx vy : τ int) :
+  π (modulo (to_int (Stdlib.Nat.xor (to_nat vx) (to_nat vy))) (2 ^ (to_int n))
+   = modulo (bbterm_acc (zip_with bb_xor (bits_of_n n vx) (bits_of_n n vy)) 0)
+            (2 ^ (to_int n))) ≔
+begin
+  assume n vx vy;
+  refine bitwise_arith_eq_bits (Stdlib.Nat.xor) bb_xor xor_spec n vx vy
+end;
+
+// Rule 109: bitblast_xor — XOR instance of the BV_elim + feq template.
 opaque symbol bitblast_xor [n : τ nat] (x y : BV n) :
   π (bvxor x y = bbT n (zip_with bb_xor (bits_of x) (bits_of y))) ≔
-begin admit end;
+begin
+  assume n x y;
+  refine BV_elim (λ z, bvxor z y = bbT n (zip_with bb_xor (bits_of z) (bits_of y))) _ x;
+  assume vx;
+  refine BV_elim
+    (λ z, bvxor (MVBV n vx) z = bbT n (zip_with bb_xor (bits_of (MVBV n vx)) (bits_of z))) _ y;
+  assume vy;
+  refine feq (MVBV n) (bvxor_arith_eq_bits n vx vy)
+end;
 
 // Rule 110: bitblast_xnor — pointwise iff = ¬(a xor b).
 opaque symbol bitblast_xnor [n : τ nat] (x y : BV n) :
