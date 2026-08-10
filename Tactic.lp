@@ -22,6 +22,21 @@ constant symbol Tactic : TYPE;
  symbol tactic : Set;
  rule τ tactic ↪ Tactic;
 
+ constant symbol #all_hyps : (Π p, π p → Tactic) → Tactic;
+builtin "all_hyps" ≔ #all_hyps;
+
+constant symbol #print: String → Tactic;
+builtin "print" ≔ #print;
+
+constant symbol #assumption : Tactic;
+builtin "assumption" ≔ #assumption;
+
+constant symbol #focus : String → Tactic;
+builtin "focus" ≔ #focus;
+
+constant symbol #first_hyp : (Π a, π a → Tactic) → Tactic;
+builtin "first_hyp" ≔ #first_hyp;
+
 constant symbol #admit : Tactic;
 builtin "admit" ≔ #admit;
 
@@ -106,20 +121,20 @@ with do ($n +1) $t ↪ $t and (do $n $t);
 
 require open Stdlib.Eq;
 
-symbol lem1 x y z t : π (((x + y) + z) + t = x + (y + (z + t))) ≔
-begin
-  assume x;
-  eval #generalize x;
-  //assume x y z t;
-  //compute #assume "x" & #assume "y" & #assume "z" & #assume "t";
-  eval #assume "x" and #assume "y" and #assume "z" and #assume "t";
-  //rewrite addnA; rewrite addnA; reflexivity
-  //compute 2 * #rewrite addnA;
-  eval do 2 (#rewrite addnA) and #reflexivity;
-end;
+// symbol lem1 x y z t : π (((x + y) + z) + t = x + (y + (z + t))) ≔
+// begin
+//   assume x;
+//   eval #generalize x;
+//   //assume x y z t;
+//   //compute #assume "x" & #assume "y" & #assume "z" & #assume "t";
+//   eval #assume "x" and #assume "y" and #assume "z" and #assume "t";
+//   //rewrite addnA; rewrite addnA; reflexivity
+//   //compute 2 * #rewrite addnA;
+//   eval do 2 (#rewrite addnA) and #reflexivity;
+// end;
 
-symbol lem2 p : π p → π p ≔
-begin
-  assume p h; eval #refine "h"
-end;
+// symbol lem2 p : π p → π p ≔
+// begin
+//   assume p h; eval #refine "h"
+// end;
 

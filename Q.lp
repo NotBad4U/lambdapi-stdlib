@@ -877,8 +877,247 @@ begin
 end;
 
 
-symbol ᵣ≐: ℚ → ℚ → Comp; notation ᵣ≐ infix 10;
+// Same precedence as ℤ's `≐` (Z.lp), so that `x ᵣ≐ y = c` parses as
+// `(x ᵣ≐ y) = c` rather than binding against `=`.
+symbol ᵣ≐: ℚ → ℚ → Comp; notation ᵣ≐ infix 12;
 rule ($n1 / $d1) ᵣ≐ ($n2 / $d2) ↪ $n1 * $d2 ≐ $n2 * $d1;
+
+// ============================================================
+// Total order on ℚ
+//
+// Mirrors the ℤ development (Z.lp, "Directional comparison operators"):
+// everything is derived from the three-way comparison ᵣ≐, so the four
+// relations are definitions, not new symbols with rules. The `ᵣ` prefix
+// avoids clashing with the ℤ operators, which are in scope here.
+//
+// Cross-multiplication is sound for ᵣ≐ because `/`-fractions are
+// normalized with a *positive* denominator (see the `frac` rule: the
+// denominator is `sign d * Z_red_Stein d n`).
+// ============================================================
+
+symbol ᵣ≤ x y ≔ ¬ (istrue (isGt (x ᵣ≐ y)));
+notation ᵣ≤ infix 10;
+
+symbol ᵣ< x y ≔ istrue (isLt (x ᵣ≐ y));
+notation ᵣ< infix 10;
+
+symbol ᵣ≥ x y ≔ ¬ (x ᵣ< y);
+notation ᵣ≥ infix 10;
+
+symbol ᵣ> x y ≔ ¬ (x ᵣ≤ y);
+notation ᵣ> infix 10;
+
+// Antisymmetry of the comparison itself: swapping the arguments flips it.
+opaque symbol ᵣ≐_com x y : π (x ᵣ≐ y = opp (y ᵣ≐ x)) ≔
+begin
+  refine ind_Rat (λ u, `∀ v, (u ᵣ≐ v) = opp (v ᵣ≐ u)) _;
+  assume n1 d1;
+  refine ind_Rat (λ v, (frac n1 d1 ᵣ≐ v) = opp (v ᵣ≐ frac n1 d1)) _;
+  assume n2 d2;
+  simplify;
+  rewrite ≐_com;
+  reflexivity
+end;
+
+opaque symbol ᵣ≐_Eq x : π (x ᵣ≐ x = Eq) ≔
+begin
+  refine ind_Rat (λ u, (u ᵣ≐ u) = Eq) _;
+  assume n d;
+  simplify;
+  rewrite ≐_Eq;
+  reflexivity
+end;
+
+opaque symbol ᵣ≤_refl x : π (x ᵣ≤ x) ≔
+begin
+  assume x;
+  have e : π (istrue (isGt (x ᵣ≐ x)) ⇒ ⊥)
+    { rewrite ᵣ≐_Eq; refine λ h, h };
+  refine e
+end;
+
+// Totality: any two rationals are comparable.
+opaque symbol ᵣ≤_total x y : π (x ᵣ≤ y ∨ y ᵣ≤ x) ≔
+begin
+  assume x y;
+  have e : π ((istrue (isGt (x ᵣ≐ y)) ⇒ ⊥) ∨ (istrue (isGt (y ᵣ≐ x)) ⇒ ⊥))
+    { rewrite ᵣ≐_com y x;
+      refine ind_Comp
+        (λ c, (istrue (isGt c) ⇒ ⊥) ∨ (istrue (isGt (opp c)) ⇒ ⊥)) _ _ _ (x ᵣ≐ y)
+      { refine ∨ᵢ₁ (λ h, h) }
+      { refine ∨ᵢ₁ (λ h, h) }
+      { refine ∨ᵢ₂ (λ h, h) } };
+  refine e
+end;
+
+opaque symbol ᵣ<_ᵣ≤ x y : π (x ᵣ< y ⇒ x ᵣ≤ y) ≔
+begin
+  assume x y;
+  have e : π (istrue (isLt (x ᵣ≐ y)) ⇒ istrue (isGt (x ᵣ≐ y)) ⇒ ⊥)
+    { refine ind_Comp (λ c, istrue (isLt c) ⇒ istrue (isGt c) ⇒ ⊥) _ _ _ (x ᵣ≐ y)
+      { refine λ h _, h }
+      { refine λ _ h, h }
+      { refine λ h _, h } };
+  refine e
+end;
+
+// Irreflexivity of the strict order.
+opaque symbol ᵣ<_irrefl x : π (¬ (x ᵣ< x)) ≔
+begin
+  assume x;
+  have e : π (istrue (isLt (x ᵣ≐ x)) ⇒ ⊥)
+    { rewrite ᵣ≐_Eq; refine λ h, h };
+  refine e
+end;
+
+// `x ᵣ≥ y` and `y ᵣ≤ x` agree, i.e. ᵣ≥ is the mirror of ᵣ≤.
+opaque symbol ᵣ≤_ᵣ≥ x y : π (x ᵣ≥ y ⇔ y ᵣ≤ x) ≔
+begin
+  assume x y;
+  have e : π ((istrue (isLt (x ᵣ≐ y)) ⇒ ⊥) ⇔ (istrue (isGt (y ᵣ≐ x)) ⇒ ⊥))
+    { rewrite ᵣ≐_com y x;
+      refine ind_Comp
+        (λ c, (istrue (isLt c) ⇒ ⊥) ⇔ (istrue (isGt (opp c)) ⇒ ⊥)) _ _ _ (x ᵣ≐ y)
+      { refine ∧ᵢ (λ h, h) (λ h, h) }
+      { refine ∧ᵢ (λ h, h) (λ h, h) }
+      { refine ∧ᵢ (λ h, h) (λ h, h) } };
+  refine e
+end;
+
+// `x ᵣ> y` and `y ᵣ< x` agree.
+opaque symbol ᵣ<_ᵣ> x y : π (x ᵣ> y ⇔ y ᵣ< x) ≔
+begin
+  assume x y;
+  have e : π ((((istrue (isGt (x ᵣ≐ y)) ⇒ ⊥) ⇒ ⊥)) ⇔ istrue (isLt (y ᵣ≐ x)))
+    { rewrite ᵣ≐_com y x;
+      refine ind_Comp
+        (λ c, (((istrue (isGt c) ⇒ ⊥) ⇒ ⊥)) ⇔ istrue (isLt (opp c))) _ _ _ (x ᵣ≐ y)
+      { refine ∧ᵢ (λ h, h (λ k, k)) (λ h _, h) }
+      { refine ∧ᵢ (λ h, h (λ k, k)) (λ h _, h) }
+      { refine ∧ᵢ (λ _, ⊤ᵢ) (λ _ k, k ⊤ᵢ) } };
+  refine e
+end;
+
+// ---------- Antisymmetry ----------
+
+// Middle-exchange law for ℤ products, used to shuffle the four factors of a
+// cross-product into the pairing we need.
+opaque symbol *_swap_mid a b c d : π ((a * b) * (c * d) = (a * c) * (b * d)) ≔
+begin
+  assume a b c d;
+  rewrite *_assoc a b (c * d);
+  rewrite left *_assoc b c d;
+  rewrite *_com b c;
+  rewrite *_assoc c b d;
+  rewrite left *_assoc a c (b * d);
+  reflexivity
+end;
+
+// From a cross-product equality between the *normalized* numerator/denominator
+// pairs, recover the cross-product equality between the raw ones. Multiplying
+// by D1·D2 (≠ 0) and cancelling, both sides become (N1·D2)·(d1·d2).
+opaque symbol cross_denorm n1 d1 n2 d2 N1 D1 N2 D2 :
+  π (D1 ≠ 0) → π (D2 ≠ 0) →
+  π (N1 * d1 = n1 * D1) → π (N2 * d2 = n2 * D2) →
+  π (N1 * D2 = N2 * D1) → π (n1 * d2 = n2 * d1) ≔
+begin
+  assume n1 d1 n2 d2 N1 D1 N2 D2 hD1 hD2 R1 R2 h;
+  refine *_reg_r (n1 * d2) (n2 * d1) (D1 * D2) (mul_ne_0 D1 D2 hD1 hD2) _;
+  // (n1·d2)·(D1·D2) = (n2·d1)·(D1·D2)
+  rewrite *_swap_mid n1 d2 D1 D2;   // (n1·D1)·(d2·D2)
+  rewrite left R1;                  // (N1·d1)·(d2·D2)
+  rewrite *_com d2 D2;              // (N1·d1)·(D2·d2)
+  rewrite *_swap_mid N1 d1 D2 d2;   // (N1·D2)·(d1·d2)
+  rewrite h;                        // (N2·D1)·(d1·d2)
+  rewrite *_com D1 D2;              // right side: (n2·d1)·(D2·D1)
+  rewrite *_swap_mid n2 d1 D2 D1;   // (n2·D2)·(d1·D1)
+  rewrite left R2;                  // (N2·d2)·(d1·D1)
+  rewrite *_com d1 D1;              // (N2·d2)·(D1·d1)
+  rewrite *_swap_mid N2 d2 D1 d1;   // (N2·D1)·(d2·d1)
+  rewrite *_com d2 d1;
+  reflexivity
+end;
+
+// ᵣ≐ decides equality of rationals, in the non-degenerate case.
+opaque symbol ᵣ≐_decides_nz n1 d1 n2 d2 :
+  π (d1 ≠ 0) → π (d2 ≠ 0) →
+  π ((frac n1 d1 ᵣ≐ frac n2 d2) = Eq) → π (frac n1 d1 = frac n2 d2) ≔
+begin
+  assume n1 d1 n2 d2 hd1 hd2 h;
+  have hD1 : π (sign d1 * Z_red_Stein d1 n1 ≠ 0)
+    { refine mul_ne_0 (sign d1) (Z_red_Stein d1 n1)
+        (sign_ne_0 d1 hd1) (Z_red_Stein_l_ne_0 d1 n1 hd1) };
+  have hD2 : π (sign d2 * Z_red_Stein d2 n2 ≠ 0)
+    { refine mul_ne_0 (sign d2) (Z_red_Stein d2 n2)
+        (sign_ne_0 d2 hd2) (Z_red_Stein_l_ne_0 d2 n2 hd2) };
+  // `frac` reduces to the normalized pair, so `h` *is* the ℤ comparison.
+  have hc : π ((sign d1 * Z_red_Stein n1 d1) * (sign d2 * Z_red_Stein d2 n2)
+              = (sign d2 * Z_red_Stein n2 d2) * (sign d1 * Z_red_Stein d1 n1))
+    { refine ≐_decides _ _ h };
+  refine frac_eq n1 d1 n2 d2 hd1 hd2 _;
+  refine cross_denorm n1 d1 n2 d2
+    (sign d1 * Z_red_Stein n1 d1) (sign d1 * Z_red_Stein d1 n1)
+    (sign d2 * Z_red_Stein n2 d2) (sign d2 * Z_red_Stein d2 n2)
+    hD1 hD2 (frac_red_cross d1 n1) (frac_red_cross d2 n2) hc
+end;
+
+// ᵣ≐ decides equality on all of ℚ. The degenerate denominators are handled by
+// `frac_0_den` (frac n 0 = 0/1 = frac 0 1), which reinstates a nonzero one.
+opaque symbol ᵣ≐_decides x y : π ((x ᵣ≐ y) = Eq) → π (x = y) ≔
+begin
+  refine ind_Rat (λ u, `∀ v, ((u ᵣ≐ v) = Eq) ⇒ u = v) _;
+  assume n1;
+  induction
+  // d1 = Z0: frac n1 0 collapses to 0/1, whose denominator is nonzero.
+  { rewrite (frac_0_den n1);
+    refine ind_Rat (λ v, ((0 / 1 ᵣ≐ v) = Eq) ⇒ 0 / 1 = v) _;
+    assume n2;
+    induction
+    { rewrite (frac_0_den n2); assume h; reflexivity }
+    { assume p2; refine ᵣ≐_decides_nz 0 1 n2 (Zpos p2) (Zpos≠Z0 H) (Zpos≠Z0 p2) }
+    { assume p2; refine ᵣ≐_decides_nz 0 1 n2 (Zneg p2) (Zpos≠Z0 H) (Zneg≠Z0 p2) } }
+  // d1 = Zpos p1
+  { assume p1;
+    refine ind_Rat (λ v, ((frac n1 (Zpos p1) ᵣ≐ v) = Eq) ⇒ frac n1 (Zpos p1) = v) _;
+    assume n2;
+    induction
+    { rewrite (frac_0_den n2);
+      refine ᵣ≐_decides_nz n1 (Zpos p1) 0 1 (Zpos≠Z0 p1) (Zpos≠Z0 H) }
+    { assume p2;
+      refine ᵣ≐_decides_nz n1 (Zpos p1) n2 (Zpos p2) (Zpos≠Z0 p1) (Zpos≠Z0 p2) }
+    { assume p2;
+      refine ᵣ≐_decides_nz n1 (Zpos p1) n2 (Zneg p2) (Zpos≠Z0 p1) (Zneg≠Z0 p2) } }
+  // d1 = Zneg p1
+  { assume p1;
+    refine ind_Rat (λ v, ((frac n1 (Zneg p1) ᵣ≐ v) = Eq) ⇒ frac n1 (Zneg p1) = v) _;
+    assume n2;
+    induction
+    { rewrite (frac_0_den n2);
+      refine ᵣ≐_decides_nz n1 (Zneg p1) 0 1 (Zneg≠Z0 p1) (Zpos≠Z0 H) }
+    { assume p2;
+      refine ᵣ≐_decides_nz n1 (Zneg p1) n2 (Zpos p2) (Zneg≠Z0 p1) (Zpos≠Z0 p2) }
+    { assume p2;
+      refine ᵣ≐_decides_nz n1 (Zneg p1) n2 (Zneg p2) (Zneg≠Z0 p1) (Zneg≠Z0 p2) } }
+end;
+
+// Antisymmetry: x ᵣ≤ y and y ᵣ≤ x force x = y.
+opaque symbol ᵣ≤_antisym x y : π (x ᵣ≤ y) → π (y ᵣ≤ x) → π (x = y) ≔
+begin
+  assume x y hxy hyx;
+  refine ᵣ≐_decides x y _;
+  have e : π (¬ (istrue (isGt (x ᵣ≐ y))) ⇒ ¬ (istrue (isGt (opp (x ᵣ≐ y))))
+              ⇒ (x ᵣ≐ y) = Eq)
+    { refine ind_Comp (λ c, ((x ᵣ≐ y) = c) ⇒ ¬ (istrue (isGt c))
+                              ⇒ ¬ (istrue (isGt (opp c))) ⇒ (x ᵣ≐ y) = Eq)
+        _ _ _ (x ᵣ≐ y) _
+      { refine λ hEq _ _, hEq }
+      { refine λ _ _ h, ⊥ₑ (h ⊤ᵢ) }
+      { refine λ _ h _, ⊥ₑ (h ⊤ᵢ) }
+      { reflexivity } };
+  refine e hxy _;
+  rewrite left ᵣ≐_com y x;
+  refine hyx
+end;
 
 
 // ============================================================
@@ -897,26 +1136,8 @@ rule ($n1 / $d1) ᵣ≐ ($n2 / $d2) ↪ $n1 * $d2 ≐ $n2 * $d1;
 //   x ᵣ≥ y                  ≡  ¬ (x ᵣ< y)
 //   x ᵣ> y                  ≡  ¬ (x ᵣ≤ y)
 
-symbol ᵣ≤ x y ≔ ¬ istrue (isGt (x ᵣ≐ y));
-notation ᵣ≤ infix 10;
-
-symbol ᵣ< x y ≔ istrue (isLt (x ᵣ≐ y));
-notation ᵣ< infix 10;
-
-symbol ᵣ≥ x y ≔ ¬ (x ᵣ< y);
-notation ᵣ≥ infix 10;
-
-symbol ᵣ> x y ≔ ¬ (x ᵣ≤ y);
-notation ᵣ> infix 10;
 
 // --- Reflexivity / irreflexivity ---
-
-opaque symbol ᵣ≤_refl x : π (x ᵣ≤ x) ≔
-begin
-  refine ind_Rat (λ u, u ᵣ≤ u) _;
-  assume n d;
-  refine ≤_refl ((sign d * Z_red_Stein n d) * (sign d * Z_red_Stein d n))
-end;
 
 opaque symbol ᵣ<_no_refl x : π (¬ (x ᵣ< x)) ≔
 begin
