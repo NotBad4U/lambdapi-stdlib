@@ -1125,6 +1125,7 @@ begin
   {
     assume heq;
     refine ∃ᵢ _0 _;
+    simplify; rewrite addn0;
     refine heq
   }
   {
@@ -1151,7 +1152,8 @@ begin
   have g: π (`∃ p, ((n +1) + p) = m) { refine le_plus_exists (n +1) m h };
   refine ∃ₑ g _;
   assume p h2;
-  refine ∃ᵢ ((_0 +1) + p) _;
+  refine ∃ᵢ (p +1) _;
+  simplify; rewrite addnS; rewrite left addSn;
   refine h2
 end;
 
@@ -1948,9 +1950,7 @@ type 42;
 
 opaque symbol n_plus_n_eq_times_2 n: π (n * 2 = n + n) ≔
 begin
-induction
-{reflexivity}
-{assume n ih; simplify; rewrite left ih; reflexivity }
+assume n; simplify; rewrite mulnS; rewrite muln1; reflexivity
 end;
 
 // Bitwise operations
@@ -1961,20 +1961,34 @@ rule div2 _0 ↪ _0
 with div2 (_0 +1) ↪ _0
 with div2 (($x +1) +1) ↪ (div2 $x) +1;
 
-opaque symbol div2_double x : π ((div2 (2 * x)) = x) ≔
+opaque symbol mul2n n : π (2 * n = n + n) ≔
+begin
+  assume n; rewrite mulnC; refine n_plus_n_eq_times_2 n
+end;
+
+opaque symbol div2_add x : π (div2 (x + x) = x) ≔
 begin
   induction
   {reflexivity}
-  { assume x ih; simplify; apply feq (+1); apply ih }
+  { assume x ih; simplify; rewrite addnS; apply feq (+1); apply ih }
+end;
+
+opaque symbol div2_double x : π ((div2 (2 * x)) = x) ≔
+begin
+  assume x; rewrite mul2n; refine div2_add x
+end;
+
+opaque symbol div2_add_succ x : π (div2 ((x + x) +1) = x) ≔
+begin
+  induction
+  {reflexivity}
+  { assume x ih; simplify; rewrite addnS; apply feq (+1); apply ih }
 end;
 
 opaque symbol div2_succ_double n : π ( div2 ((2 * n) +1) = n) ≔
-begin induction {reflexivity} {
-  assume x ih; simplify; 
-  apply feq (+1) _;
-  rewrite left .[x in _ = x] ih;
-  reflexivity
-} end;
+begin
+  assume n; rewrite mul2n; refine div2_add_succ n
+end;
 
 opaque symbol le_div n : π (div2 (n) ≤ n) ≔
 begin
@@ -2004,7 +2018,7 @@ begin
   }
 end;
 
-opaque symbol div2_decr a n : π (a ≤ n + 1) → π (div2 a ≤ n) ≔
+opaque symbol div2_decr a n : π (a ≤ n +1) → π (div2 a ≤ n) ≔
 begin
   induction
   { assume n h; simplify; apply ⊤ᵢ }
@@ -2087,12 +2101,10 @@ begin
   }
   {
     assume hr; rewrite hr; simplify if;
-    simplify;
+    simplify; rewrite addn0;
     refine ∧ₑ₂ (negb_false_iff (even (bitwise op n (div2 a) (div2 b) + bitwise op n (div2 a) (div2 b)))) _;
     apply even_spec (bitwise op n (div2 a) (div2 b) + bitwise op n (div2 a) (div2 b));
-    simplify;
-    apply ∃ᵢ (bitwise op n (div2 a) (div2 b));
-    reflexivity
+    refine ∃ᵢ (bitwise op n (div2 a) (div2 b)) (mul2n (bitwise op n (div2 a) (div2 b)))
   }
 end;
 
@@ -2107,12 +2119,11 @@ begin
   apply ∨ₑ case
   {
     assume hl; rewrite hl; simplify if;
-    rewrite addnC;
+    rewrite addnC; simplify; rewrite addn1;
     apply div2_succ_double
   }
   {
     assume hr; rewrite hr; simplify if;
-    rewrite add0n;
     apply div2_double (bitwise op n (div2 a) (div2 b))
   }
 end;
@@ -2229,16 +2240,11 @@ opaque symbol shiftr_spec: Π a n m,  π (testbit (a >>> n) m = testbit a (m + n
 begin
   assume a;
   induction
-  { reflexivity }
+  { assume m; rewrite addn0; reflexivity }
   {
     assume n ihn m;
-    have g: π ((m + (n +1)) = (m + 1) + n) {
-      simplify;  
-      reflexivity
-    };
-    rewrite g;
-    rewrite left ihn (m + 1);
-    reflexivity
+    rewrite addnS;
+    refine ihn (m +1)
   }
 end;
 
@@ -2246,7 +2252,7 @@ opaque symbol shiftl_spec: Π a n m,  π (n ≤ m) → π (testbit (a <<< n) m =
 begin
 assume a;
   induction
-  { reflexivity }
+  { assume m h; rewrite sub0n; reflexivity }
   {
     assume n ih;
     induction
@@ -2259,7 +2265,8 @@ assume a;
       remove ihm;
       simplify;
       rewrite left (ih m h);
-      have g: π ((((a <<< n) + (a <<< n))) = (2 * (a <<< n))) {reflexivity};
+      have g: π ((((a <<< n) + (a <<< n))) = (2 * (a <<< n)))
+        { symmetry; refine mul2n (a <<< n) };
       rewrite g;
       rewrite div2_double;
       reflexivity

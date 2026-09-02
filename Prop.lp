@@ -112,8 +112,3 @@ begin
 admit
 end;
 
-
-// builtin "and" ≔ ∧;
-// builtin "or"  ≔ ∨;
-// builtin "imp" ≔ ⇒;
-// builtin "eqv" ≔ ⇔;

@@ -5,6 +5,26 @@ require open Stdlib.List Stdlib.Impred;
 require Stdlib.Fin as fin;
 open Stdlib.Fin;
 
+// Upstream dropped a number of reduction rules (see Stdlib.ExtraRules);
+// requiring that module restores the computational behaviour assumed below.
+require Stdlib.ExtraRules;
+
+// Stdlib.Pos (pulled in transitively) now declares decimal notation for ℙ.
+// Restore ℕ as the interpretation of numeric literals in this module.
+builtin "0" ≔ Stdlib.Nat._0;
+builtin "1" ≔ Stdlib.Nat._1;
+builtin "2" ≔ Stdlib.Nat._2;
+builtin "3" ≔ Stdlib.Nat._3;
+builtin "4" ≔ Stdlib.Nat._4;
+builtin "5" ≔ Stdlib.Nat._5;
+builtin "6" ≔ Stdlib.Nat._6;
+builtin "7" ≔ Stdlib.Nat._7;
+builtin "8" ≔ Stdlib.Nat._8;
+builtin "9" ≔ Stdlib.Nat._9;
+builtin "10" ≔ Stdlib.Nat._10;
+builtin "+" ≔ Stdlib.Nat.+;
+builtin "*" ≔ Stdlib.Nat.*;
+
 // We define bitvectors. We choose the `Fin` representation over others for its relative efficiency
 // and the fact that bitwise operations on `Fin` are defined. Some other possible
 // representations are `Vec n 𝔹`, `{ l : List Bool | l.length = w}`, `{ n : BinNat | size n = w}`.

@@ -25,9 +25,9 @@ assert ⊢ isLt (FinMk 5 1 ⊤ᵢ) ≡ ⊤ᵢ;
 //FIXME: coerce above does not work
 //compute (1 + ((FinMk 5 1 ⊤ᵢ)));
 
-symbol last n: Fin (n + 1) ≔ (FinMk (n + 1) n (≤_refl n));
+symbol last n: Fin (n +1) ≔ (FinMk (n +1) n (≤_refl n));
 
-symbol succ n: Fin n → Fin (n + 1) ≔ (λ e, FinMk (n + 1) n (≤_refl n));
+symbol succ n: Fin n → Fin (n +1) ≔ (λ e, FinMk (n +1) n (≤_refl n));
 
 // Addition modulo n
 symbol add [n] : Fin n → Fin n → Fin n;

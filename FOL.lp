@@ -16,7 +16,7 @@ rule π (`∀ x, $f.[x]) ↪ Π x, π $f.[x];
 
 constant symbol ∃ [a] : (τ a → Prop) → Prop; // ?? or \exists
 
-// builtin "ex" ≔ ∃;
+builtin "ex" ≔ ∃;
 
 notation ∃ quantifier;
 

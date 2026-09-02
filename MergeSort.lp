@@ -1,5 +1,21 @@
 require open Stdlib.Nat  Stdlib.Pos Stdlib.Prod Stdlib.Set Stdlib.List Stdlib.Eq Stdlib.Prop Stdlib.FOL Stdlib.Bool Stdlib.Comp;
 
+// Stdlib.Pos now declares decimal notation for ℙ (upstream #55), which would
+// otherwise capture the numeric literals below. Restore ℕ as their type.
+builtin "0" ≔ Stdlib.Nat._0;
+builtin "1" ≔ Stdlib.Nat._1;
+builtin "2" ≔ Stdlib.Nat._2;
+builtin "3" ≔ Stdlib.Nat._3;
+builtin "4" ≔ Stdlib.Nat._4;
+builtin "5" ≔ Stdlib.Nat._5;
+builtin "6" ≔ Stdlib.Nat._6;
+builtin "7" ≔ Stdlib.Nat._7;
+builtin "8" ≔ Stdlib.Nat._8;
+builtin "9" ≔ Stdlib.Nat._9;
+builtin "10" ≔ Stdlib.Nat._10;
+builtin "+" ≔ Stdlib.Nat.+;
+builtin "*" ≔ Stdlib.Nat.*;
+
 symbol split [a: Set] (l : τ (list a)): τ(list a × list a);
 rule split □ ↪ (□ ‚ □)
 with split ($x ⸬ □) ↪ (($x ⸬ □) ‚ □)

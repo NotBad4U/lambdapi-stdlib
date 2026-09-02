@@ -3,6 +3,8 @@
 //require open Stdlib.Eq Stdlib.Impred;
 constant symbol Set : TYPE;
 
+builtin "Set" ≔ Set;
+
 // Interpretation of set codes in TYPE
 
 injective symbol τ : Set → TYPE; // `t or \tau
@@ -11,13 +13,13 @@ constant symbol Prop : TYPE;
 
 builtin "Prop" ≔ Prop;
 
-builtin "T" ≔ τ;
+builtin "El" ≔ τ;
 
 // interpretation of propositions in TYPE
 
 injective symbol π : Prop → TYPE; // `p
 
-builtin "P" ≔ π;
+builtin "Prf" ≔ π;
 
 symbol o : Set;
 

@@ -364,7 +364,7 @@ begin
   assume a b h;
   have g: π ((a - b) + b = b) { simplify; refine =_add_compat (a - b) Z0 b h };
   have g2: π (a + (b - b) = b) { simplify; rewrite +_com b (— b); rewrite left +_assoc; refine g };
-  change π ((a + Z0) = b);
+  rewrite left +Z0 a;
   rewrite left -_same b;
   refine g2
 end;
@@ -1031,7 +1031,7 @@ end;
 symbol lt_succ_self x a : π (x < x + (Zpos a)) ≔
 begin
   assume x a;
-  have e: π (x + 0 = x) { reflexivity };
+  have e: π (x + 0 = x) { refine +Z0 x };
   rewrite left .[ t in t < _] e;
   rewrite +_com;
   rewrite +_com x (Zpos a);
