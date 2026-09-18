@@ -1281,6 +1281,24 @@ with has $p ($x ⸬ $l) ↪ if ($p $x) true (has $p $l);
 assert ⊢ has (λ x, eqn (x + 1) 3) (42 ⸬ 2 ⸬ 51 ⸬ 3 ⸬ □) ≡ true;
 assert ⊢ has (λ x, eqn (x + 1) 3) (42 ⸬ 4 ⸬ 51 ⸬ 3 ⸬ □) ≡ false;
 
+opaque symbol has_cons [a] (p:τ a → 𝔹) (x:τ a) l :
+  π (has p (x ⸬ l) = (p x or has p l)) ≔
+begin
+  assume a p x l;
+  refine ind_𝔹 (λ b, if b true (has p l) = (b or has p l)) _ _ (p x)
+  { reflexivity; }
+  { reflexivity; }
+end;
+
+opaque symbol ∨_has [a] (p:τ a → 𝔹) (x:τ a) l :
+  π (has p (x ⸬ l)) → π (p x ∨ has p l) ≔
+begin
+  assume a p x l h;
+  refine ∨_istrue _;
+  rewrite left has_cons p x l;
+  apply h;
+end;
+
 // all
 
 symbol all [a] : (τ a → 𝔹) → 𝕃 a → 𝔹;
@@ -1902,6 +1920,16 @@ begin
     rewrite H1; rewrite nths_shift_cons x b l (indexes l); rewrite h1;
     refine eq_refl (x ⸬ l) }
 end;
+
+// foldr
+
+symbol foldr [a b] : (τ a → τ b → τ b) → τ b → 𝕃 a → τ b;
+
+rule foldr _ $z □ ↪ $z
+with foldr $f $z ($x ⸬ $l) ↪ $f $x (foldr $f $z $l);
+
+assert ⊢ foldr (+) 0 (3 ⸬ 2 ⸬ 1 ⸬ □) ≡ 6;
+assert ⊢ foldr (*) 1 (3 ⸬ 2 ⸬ 2 ⸬ □) ≡ 12;
 
 // sumn
 

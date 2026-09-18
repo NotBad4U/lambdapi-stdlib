@@ -66,8 +66,8 @@ assert ⊢ propD ctx (pOther 1) ≡ f b;
 assert ⊢ propD ctx (pOther 2) ≡ b;
 assert ⊢ propD ctx (pOther 3) ≡ not_found;
 
-// The prover only ever looks up ⊥ and atoms in the context:
-// no need for a decidable equality on the whole syntax.
+// The prover only ever looks up ⊥ and atoms in the context.
+
 symbol is_false : prop → 𝔹;
 rule is_false pFalse ↪ true
 with is_false pTrue ↪ false
@@ -84,17 +84,9 @@ with is_var _ (pAnd _ _) ↪ false
 with is_var _ (pOr _ _) ↪ false
 with is_var _ (pImpl _ _) ↪ false;
 
-symbol knows_false : 𝕃 propS → 𝔹;
-rule knows_false □ ↪ false
-with knows_false ($p ⸬ $c) ↪ is_false $p or knows_false $c;
+symbol knows_false : 𝕃 propS → 𝔹 ≔ has is_false;
 
-symbol knows_var : ℕ → 𝕃 propS → 𝔹;
-rule knows_var _ □ ↪ false
-with knows_var $i ($p ⸬ $c) ↪ is_var $i $p or knows_var $i $c;
-
-symbol foldr [a b: Set] : (τ a → τ b → τ b) → τ b → 𝕃 a → τ b;
-rule foldr $f $z □ ↪ $z
-with foldr $f $z ($x ⸬ $xs) ↪ $f $x (foldr $f $z $xs);
+symbol knows_var (i: ℕ) : 𝕃 propS → 𝔹 ≔ has (is_var i);
 
 symbol All: 𝕃 propS → prop ≔ foldr (pAnd) pTrue;
 
@@ -122,22 +114,35 @@ symbol All: 𝕃 propS → prop ≔ foldr (pAnd) pTrue;
    The principal formula is always *removed* from the context, which is what
    makes the calculus contraction-free: no hypothesis is ever duplicated. */
 
-symbol prove : ℕ → 𝕃 propS → prop → 𝔹;
-symbol scan : ℕ → 𝕃 propS → 𝕃 propS → prop → 𝔹;
+symbol prove (fuel: ℕ):  𝕃 propS → prop → 𝔹;
+
+symbol scan (fuel: ℕ): 𝕃 propS → 𝕃 propS → prop → 𝔹;
 
 rule prove _0 _ _ ↪ false
 // ⊤R
 with prove (_ +1) _ pTrue ↪ true
 // ∧R and ⇒R are invertible
-with prove ($n +1) $Γ (pAnd $x $y) ↪ prove $n $Γ $x and prove $n $Γ $y
+with prove ($n +1) $Γ (pAnd $x $y) ↪
+  let l ≔ prove $n $Γ $x in
+  let r ≔ prove $n $Γ $y in
+  l and r
 with prove ($n +1) $Γ (pImpl $x $y) ↪ prove $n ($x ⸬ $Γ) $y
 // axiom, then the left rules
-with prove ($n +1) $Γ (pOther $i) ↪ knows_var $i $Γ or scan $n □ $Γ (pOther $i)
+with prove ($n +1) $Γ (pOther $i) ↪
+  let in_context ≔ knows_var $i $Γ in
+  let by_left_rules ≔ scan $n □ $Γ (pOther $i) in
+  in_context or by_left_rules
 // ⊥L, then the left rules
-with prove ($n +1) $Γ pFalse ↪ knows_false $Γ or scan $n □ $Γ pFalse
+with prove ($n +1) $Γ pFalse ↪
+  let in_context ≔ knows_false $Γ in
+  let by_left_rules ≔ scan $n □ $Γ pFalse in
+  in_context or by_left_rules
 // ∨R is not invertible: try both disjuncts, then the left rules
 with prove ($n +1) $Γ (pOr $x $y) ↪
-  prove $n $Γ $x or (prove $n $Γ $y or scan $n □ $Γ (pOr $x $y));
+  let l ≔ prove $n $Γ $x in
+  let r ≔ prove $n $Γ $y in
+  let by_left_rules ≔ scan $n □ $Γ (pOr $x $y) in
+  l or (r or by_left_rules);
 
 rule scan _ _ □ _ ↪ false
 // ⊥L
@@ -149,7 +154,10 @@ with scan $n $done (pAnd $x $y ⸬ $t) $g ↪
   prove $n ($x ⸬ $y ⸬ ($done ++ $t)) $g
 // ∨L : invertible, but branching
 with scan $n $done (pOr $x $y ⸬ $t) $g ↪
-  prove $n ($x ⸬ ($done ++ $t)) $g and prove $n ($y ⸬ ($done ++ $t)) $g
+  let Γ ≔ $done ++ $t in
+  let l ≔ prove $n ($x ⸬ Γ) $g in
+  let r ≔ prove $n ($y ⸬ Γ) $g in
+  l and r
 // ⊤⇒ : ⊤ ⇒ C gives C
 with scan $n $done (pImpl pTrue $c ⸬ $t) $g ↪ prove $n ($c ⸬ ($done ++ $t)) $g
 // ⊥⇒ : ⊥ ⇒ C is useless
@@ -162,13 +170,18 @@ with scan $n $done (pImpl (pOr $x $y) $c ⸬ $t) $g ↪
   prove $n (pImpl $x $c ⸬ pImpl $y $c ⸬ ($done ++ $t)) $g
 // atom⇒ : fires only when the antecedent is already known
 with scan $n $done (pImpl (pOther $i) $c ⸬ $t) $g ↪
-  (knows_var $i ($done ++ $t) and prove $n ($c ⸬ ($done ++ $t)) $g)
-  or scan $n (pImpl (pOther $i) $c ⸬ $done) $t $g
+  let Γ ≔ $done ++ $t in
+  let antecedent ≔ knows_var $i Γ in
+  let consequent ≔ prove $n ($c ⸬ Γ) $g in
+  let resume ≔ scan $n (pImpl (pOther $i) $c ⸬ $done) $t $g in
+  (antecedent and consequent) or resume
 // ⇒⇒ : Dyckhoff's rule, the replacement for contraction on (X ⇒ Y) ⇒ C
 with scan $n $done (pImpl (pImpl $x $y) $c ⸬ $t) $g ↪
-  (prove $n (pImpl $y $c ⸬ ($done ++ $t)) (pImpl $x $y)
-   and prove $n ($c ⸬ ($done ++ $t)) $g)
-  or scan $n (pImpl (pImpl $x $y) $c ⸬ $done) $t $g
+  let Γ ≔ $done ++ $t in
+  let antecedent ≔ prove $n (pImpl $y $c ⸬ Γ) (pImpl $x $y) in
+  let consequent ≔ prove $n ($c ⸬ Γ) $g in
+  let resume ≔ scan $n (pImpl (pImpl $x $y) $c ⸬ $done) $t $g in
+  (antecedent and consequent) or resume
 // an atomic hypothesis carries no left rule: park it
 with scan $n $done (pOther $i ⸬ $t) $g ↪ scan $n (pOther $i ⸬ $done) $t $g;
 
@@ -228,7 +241,7 @@ begin
     induction
     { assume h d; apply h }
     { assume p c ih h d;
-      have e: π (is_false p ∨ knows_false c) { refine ∨_istrue h };
+      have e: π (is_false p ∨ knows_false c) { refine ∨_has is_false p c h };
       apply ∨ₑ e
       { assume hp; apply is_false_sound σ p hp (∧ₑ₁ d) }
       { assume hc; apply ih hc (∧ₑ₂ d) }
@@ -241,7 +254,7 @@ begin
     induction
     { assume h d; apply ⊥ₑ h }
     { assume p c ih h d;
-      have e: π (is_var i p ∨ knows_var i c) { refine ∨_istrue h };
+      have e: π (is_var i p ∨ knows_var i c) { refine ∨_has (is_var i) p c h };
       apply ∨ₑ e
       { assume hp; apply is_var_sound σ i p hp (∧ₑ₁ d) }
       { assume hc; apply ih hc (∧ₑ₂ d) }
